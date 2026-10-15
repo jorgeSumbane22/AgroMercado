@@ -38,8 +38,11 @@ if (is_post()) {
             flash('warning', 'O produto "' . $prod['name'] . '" tem pedidos associados e não pode ser apagado. Desative-o em vez disso.');
         } else {
             try {
+                // Recolhe as imagens (capa + galeria) antes de apagar: as linhas de product_images caem em cascata.
+                $imagePaths = product_image_paths($pdo, $id);
                 $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([$id]);
                 admin_delete_product_image($prod['main_image']);
+                delete_product_files($imagePaths);
                 audit(user()['id'], 'delete', 'products', 'Produto #' . $id . ' (' . $prod['name'] . ') apagado');
                 flash('success', 'Produto apagado.');
             } catch (PDOException $e) {

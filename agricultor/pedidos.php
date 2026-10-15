@@ -231,6 +231,7 @@ include __DIR__.'/../includes/header.php';
                             </tr>
                         </thead>
                         <tbody>
+                        <?php $unreadMsgs = unread_messages_by_order(current_user_id(), (int)user()['farmer_id']); ?>
                         <?php foreach ($orders as $o):
                             $st = $o['my_status'];
                             [$badgeCls, $badgeIcon, $badgeLabel] = order_meta($st);
@@ -244,7 +245,7 @@ include __DIR__.'/../includes/header.php';
                                             <i class="bi bi-receipt"></i>
                                         </span>
                                         <div class="sa-order-info">
-                                            <strong><?= e($num) ?></strong>
+                                            <strong><?= e($num) ?><?php if (!empty($unreadMsgs[(int)$o['id']])): ?> <span class="badge rounded-pill text-bg-warning" title="Mensagens por ler"><i class="bi bi-chat-dots me-1" aria-hidden="true"></i><?= $unreadMsgs[(int)$o['id']] ?></span><?php endif; ?></strong>
                                             <small>
                                                 <?= date('d M Y', strtotime($o['created_at'])) ?>
                                                 · <?= date('H:i', strtotime($o['created_at'])) ?>

@@ -6,7 +6,8 @@ unset($_SESSION['dev_reset_link']);
 if(is_post()) {
     verify_csrf($_POST['csrf']??'');
     $email=strtolower(trim((string)($_POST['email']??'')));
-    if(filter_var($email,FILTER_VALIDATE_EMAIL)) {
+    // Limite por IP (10 pedidos/hora), além do limite por conta.
+    if(filter_var($email,FILTER_VALIDATE_EMAIL) && rate_limit('pwreset:'.client_ip(),10,3600)) {
         $s=db()->prepare('SELECT id FROM users WHERE email=? AND status="active" LIMIT 1'); $s->execute([$email]); $userId=$s->fetchColumn();
         if($userId) {
             // Limite: no máximo 3 pedidos de recuperação por conta por hora.
@@ -15,13 +16,11 @@ if(is_post()) {
                 $raw=bin2hex(random_bytes(32)); $hash=hash('sha256',$raw);
                 db()->prepare('UPDATE password_resets SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([(int)$userId]);
                 db()->prepare('INSERT INTO password_resets(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL 60 MINUTE))')->execute([(int)$userId,$hash]);
-                $scheme=(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off')?'https':'http';
-                $link=$scheme.'://'.($_SERVER['HTTP_HOST']??'localhost').base_path('redefinir-password.php?token='.$raw);
+                $link=absolute_url('redefinir-password.php?token='.$raw);
                 $subject='AgroMercado — recuperação de password';
                 $body="Abra este link para redefinir a sua password (válido por 60 minutos): ".$link;
-                if((int)setting('mail_enabled','0')===1) {
-                    @mail($email,$subject,$body,'From: '.(setting('mail_from','no-reply@localhost')));
-                }
+                // Fila de email: enviado por SMTP quando configurado; caso contrário fica registado em admin/emails.php.
+                if($mailId=queue_email($email,$subject,$body,(int)$userId)) deliver_email_later($mailId);
                 audit((int)$userId,'password_reset_request','auth','Pedido de recuperação de password');
                 // Ajuda de desenvolvimento: o link só é mostrado em ambiente local, nunca em produção.
                 if(is_local_env()) $reset_link=$link;

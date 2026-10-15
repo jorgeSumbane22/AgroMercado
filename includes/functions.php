@@ -96,6 +96,7 @@ function json_out(array $data, int $code = 200): never { http_response_code($cod
 /** Valida sessão, papel, método POST e CSRF de um endpoint JSON e devolve o payload. */
 function api_guard(string ...$roles): array {
     header('Content-Type: application/json; charset=utf-8');
+    if (function_exists('rate_limit') && !rate_limit('api:'.client_ip().':'.basename($_SERVER['SCRIPT_NAME']), 120, 60)) json_out(['success'=>false,'message'=>'Demasiados pedidos. Aguarde um momento.'], 429);
     if (!is_post()) json_out(['success'=>false,'message'=>'Método não permitido.'], 405);
     if (!logged_in()) json_out(['success'=>false,'message'=>'Faça login para continuar.'], 401);
     if ($roles && !in_array(user()['role'], $roles, true)) json_out(['success'=>false,'message'=>'Sem permissão para esta ação.'], 403);
@@ -142,7 +143,8 @@ function recalc_order_status(PDO $pdo, int $orderId): string {
     if (!$active) $new = 'cancelled';
     else { $rank = order_status_rank(); usort($active, fn($a, $b) => $rank[$a] <=> $rank[$b]); $new = $active[0]; }
     $pdo->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$new, $orderId]);
-    if ($new === 'cancelled') $pdo->prepare('UPDATE payments SET status=IF(status="paid","refunded",IF(status="pending","failed",status)) WHERE order_id=?')->execute([$orderId]);
+    // Pagamento pendente falha; um pagamento já pago só passa a "refunded" quando o reembolso é processado (admin/reembolsos.php).
+    if ($new === 'cancelled') $pdo->prepare('UPDATE payments SET status="failed" WHERE order_id=? AND status="pending"')->execute([$orderId]);
     sync_order_payment_status($pdo, $orderId);
     return $new;
 }

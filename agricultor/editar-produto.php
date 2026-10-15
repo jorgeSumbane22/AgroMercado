@@ -39,6 +39,20 @@ try {
 $errors = [];
 $verified = farmer_verified();
 
+/* Ações da galeria (remover / usar como capa) — o produto já foi validado como sendo deste agricultor */
+if (is_post() && isset($_POST['gallery_action'])) {
+    verify_csrf($_POST['csrf'] ?? '');
+    try {
+        [$type, $msg] = handle_gallery_action($pdo, $id, $_POST) ?? ['danger', 'Ação inválida.'];
+        if ($type === 'success') audit(user()['id'], 'update', 'products', 'Agricultor alterou a galeria do produto #' . $id . ' (' . $_POST['gallery_action'] . ')');
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        [$type, $msg] = ['danger', 'Não foi possível alterar a galeria.'];
+    }
+    flash($type, $msg);
+    redirect(base_path('agricultor/editar-produto.php?id=' . $id . '#galeria'));
+}
+
 if (is_post()) {
     verify_csrf($_POST['csrf'] ?? '');
 
@@ -107,6 +121,11 @@ if (is_post()) {
         /* Imagem antiga só é apagada depois de gravar com sucesso (e só se estiver em uploads/) */
         if ($newImage && !empty($product['main_image']) && $product['main_image'] !== $newImage) delete_product_image_file($product['main_image']);
 
+        /* Galeria: novas imagens (o produto já está gravado; erros de imagens individuais são avisos) */
+        try { $galleryErrors = add_product_images($pdo, $id, $_FILES['gallery'] ?? null); }
+        catch (Throwable $ge) { error_log($ge->getMessage()); $galleryErrors = ['erro inesperado.']; }
+        if ($galleryErrors) flash('warning', 'Algumas imagens da galeria não foram guardadas: ' . implode(' ', $galleryErrors));
+
         flash('success', 'Produto atualizado com sucesso.' . (!$verified ? ' O produto será publicado após a verificação da conta.' : ''));
         redirect(base_path('agricultor/produtos.php'));
 
@@ -131,6 +150,9 @@ $provincias = provinces();
 
 /* Unidades */
 $unidades = product_units();
+
+/* Galeria */
+$gallery = product_gallery($id);
 
 /* Imagem atual */
 $currentImage = '';
@@ -434,6 +456,20 @@ include __DIR__.'/../includes/header.php';
                         </div>
                     </article>
 
+                    <!-- GALERIA -->
+                    <article class="content-card sa-card mt-4" id="galeria">
+                        <div class="card-heading">
+                            <div class="sa-card-head-icon">
+                                <span class="sa-kpi-icon sa-icon-info"><i class="bi bi-images"></i></span>
+                                <div>
+                                    <h4>Galeria de imagens</h4>
+                                    <p class="sa-card-sub"><?= count($gallery) ?> de <?= PRODUCT_GALLERY_MAX ?> imagens extra</p>
+                                </div>
+                            </div>
+                        </div>
+                        <?= product_gallery_fields($gallery) ?>
+                    </article>
+
                 </div>
 
                 <!-- ===== COLUNA DIREITA ===== -->
@@ -497,6 +533,7 @@ include __DIR__.'/../includes/header.php';
                 </aside>
             </div>
         </form>
+        <?= product_gallery_action_forms($gallery, (int)$product['id'], base_path('agricultor/editar-produto.php?id=' . (int)$product['id'])) ?>
 
     </section>
 </div>

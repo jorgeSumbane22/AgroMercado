@@ -20,12 +20,16 @@ if (is_post()) {
     $notes   = mb_substr(trim((string)($_POST['notes'] ?? '')), 0, 1000);
 
     if ($action === 'document') {
-        $s = $pdo->prepare('SELECT fd.id, fd.document_type, f.user_id FROM farmer_documents fd JOIN farmers f ON f.id=fd.farmer_id WHERE fd.id=?');
+        $s = $pdo->prepare('SELECT fd.id, fd.document_type, fd.expires_at, f.user_id FROM farmer_documents fd JOIN farmers f ON f.id=fd.farmer_id WHERE fd.id=?');
         $s->execute([$docId]);
         $doc = $s->fetch();
         if (!$doc || !isset($docStatusLabels[$status])) {
             flash('danger', 'Documento ou estado inválido.');
+        } elseif ($status === 'approved' && !empty($doc['expires_at']) && document_days_left($doc['expires_at']) < 0) {
+            flash('danger', 'Não é possível aprovar um documento cuja validade já terminou. Marque-o como expirado.');
         } else {
+            // Ao rever de novo, o aviso de validade pode voltar a ser enviado.
+            if ($status === 'approved') $pdo->prepare('UPDATE farmer_documents SET expiry_notified_at=NULL WHERE id=?')->execute([$docId]);
             // Mantém as notas existentes quando o campo vem vazio.
             $pdo->prepare('UPDATE farmer_documents SET status=?, notes=COALESCE(NULLIF(?,""),notes), reviewed_by=? WHERE id=?')
                 ->execute([$status, $notes, current_user_id(), $docId]);
@@ -58,8 +62,29 @@ if (is_post()) {
         flash('danger', 'Ação inválida.');
     }
 
-    redirect(base_path('admin/verificacoes.php'));
+    redirect(base_path('admin/verificacoes.php' . (($_GET['docs'] ?? '') !== '' ? '?docs=' . urlencode((string)$_GET['docs']) : '')));
 }
+
+// Verificação preguiçosa da validade dos documentos (no máx. 1x/hora por sessão).
+maybe_check_document_expiry();
+
+/* Filtro da lista de documentos */
+$docFilters = ['pending' => 'Pendentes', 'expiring' => 'A expirar em 30 dias', 'expired' => 'Expirados', 'all' => 'Todos'];
+$docFilter = (string)($_GET['docs'] ?? 'pending');
+if (!isset($docFilters[$docFilter])) $docFilter = 'pending';
+$docWhere = [
+    'pending'  => "fd.status = 'pending'",
+    'expiring' => "fd.status = 'approved' AND fd.expires_at IS NOT NULL AND fd.expires_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 30 DAY",
+    'expired'  => "(fd.status = 'expired' OR (fd.status IN ('approved','pending') AND fd.expires_at IS NOT NULL AND fd.expires_at < CURDATE()))",
+    'all'      => '1=1',
+][$docFilter];
+$docOrder = $docFilter === 'pending' ? 'fd.created_at ASC' : 'fd.expires_at IS NULL, fd.expires_at ASC, fd.created_at DESC';
+$docCounts = $pdo->query("SELECT
+    SUM(status='pending') pending,
+    SUM(status='approved' AND expires_at IS NOT NULL AND expires_at BETWEEN CURDATE() AND CURDATE() + INTERVAL 30 DAY) expiring,
+    SUM(status='expired' OR (status IN ('approved','pending') AND expires_at IS NOT NULL AND expires_at < CURDATE())) expired,
+    COUNT(*) `all`
+    FROM farmer_documents")->fetch();
 
 /* ============================================================
    LISTAS PENDENTES (perfis pendentes e não verificados)
@@ -79,15 +104,13 @@ $docs = $pdo->query("
     FROM farmer_documents fd
     JOIN farmers f ON f.id = fd.farmer_id
     JOIN users u ON u.id = f.user_id
-    WHERE fd.status = 'pending'
-    ORDER BY fd.created_at ASC
+    WHERE $docWhere
+    ORDER BY $docOrder
+    LIMIT 300
 ")->fetchAll();
 
-$totalPending = count($farmers) + count($docs);
-$docsPerFarmer = [];
-foreach ($docs as $d) {
-    $docsPerFarmer[$d['farmer_id']] = ($docsPerFarmer[$d['farmer_id']] ?? 0) + 1;
-}
+$pendingDocs = (int)($docCounts['pending'] ?? 0);
+$totalPending = count($farmers) + $pendingDocs;
 
 include __DIR__.'/../includes/header.php';
 ?>
@@ -107,7 +130,7 @@ include __DIR__.'/../includes/header.php';
                 <p class="sa-hero-sub">
                     <?php if ($totalPending > 0): ?>
                         Existem <strong><?= count($farmers) ?></strong> perfis e
-                        <strong><?= count($docs) ?></strong> documentos a aguardar revisão.
+                        <strong><?= $pendingDocs ?></strong> documentos a aguardar revisão.
                     <?php else: ?>
                         Não há nada pendente. Tudo em ordem.
                     <?php endif; ?>
@@ -141,15 +164,15 @@ include __DIR__.'/../includes/header.php';
                 </footer>
             </article>
 
-            <article class="sa-kpi <?= count($docs) > 0 ? 'sa-kpi-warn' : '' ?>">
+            <article class="sa-kpi <?= $pendingDocs > 0 ? 'sa-kpi-warn' : '' ?>">
                 <header class="sa-kpi-head">
                     <span class="sa-kpi-icon sa-icon-warning"><i class="bi bi-file-earmark-text"></i></span>
-                    <?php if (count($docs) > 0): ?>
+                    <?php if ($pendingDocs > 0): ?>
                         <span class="sa-kpi-badge sa-badge-warn">revisão</span>
                     <?php endif; ?>
                 </header>
                 <span class="sa-kpi-label">Documentos pendentes</span>
-                <strong class="sa-kpi-value"><?= count($docs) ?></strong>
+                <strong class="sa-kpi-value"><?= $pendingDocs ?></strong>
                 <footer class="sa-kpi-foot">
                     <span class="sa-kpi-sub"><i class="bi bi-file-earmark-check"></i> a aguardar</span>
                 </footer>
@@ -166,16 +189,21 @@ include __DIR__.'/../includes/header.php';
                 </footer>
             </article>
 
-            <article class="sa-kpi">
+            <?php $expN = (int)($docCounts['expiring'] ?? 0) + (int)($docCounts['expired'] ?? 0); ?>
+            <article class="sa-kpi <?= $expN > 0 ? 'sa-kpi-warn' : '' ?>">
                 <header class="sa-kpi-head">
-                    <span class="sa-kpi-icon sa-icon-success"><i class="bi bi-shield-check"></i></span>
+                    <span class="sa-kpi-icon sa-icon-<?= $expN > 0 ? 'warning' : 'success' ?>"><i class="bi bi-calendar-x"></i></span>
+                    <?php if ($expN > 0): ?>
+                        <span class="sa-kpi-badge sa-badge-warn">validade</span>
+                    <?php endif; ?>
                 </header>
-                <span class="sa-kpi-label">Estado do sistema</span>
-                <strong class="sa-kpi-value"><?= $totalPending === 0 ? 'OK' : 'Pend.' ?></strong>
+                <span class="sa-kpi-label">Validade de documentos</span>
+                <strong class="sa-kpi-value"><?= $expN ?></strong>
                 <footer class="sa-kpi-foot">
                     <span class="sa-kpi-sub">
-                        <i class="bi bi-<?= $totalPending === 0 ? 'check2-circle' : 'hourglass-split' ?>"></i>
-                        <?= $totalPending === 0 ? 'tudo processado' : 'em processamento' ?>
+                        <i class="bi bi-hourglass-split"></i>
+                        <a href="?docs=expiring#documentos"><?= (int)($docCounts['expiring'] ?? 0) ?> a expirar</a> ·
+                        <a href="?docs=expired#documentos"><?= (int)($docCounts['expired'] ?? 0) ?> expirados</a>
                     </span>
                 </footer>
             </article>
@@ -287,29 +315,39 @@ include __DIR__.'/../includes/header.php';
 
         </article>
 
-        <!-- ================= DOCUMENTOS PENDENTES ================= -->
-        <article class="content-card sa-card">
+        <!-- ================= DOCUMENTOS ================= -->
+        <article class="content-card sa-card" id="documentos">
 
             <div class="card-heading sa-card-head">
                 <div>
-                    <h4>Documentos pendentes</h4>
-                    <p class="sa-card-sub"><?= count($docs) ?> documentos a aguardar revisão</p>
+                    <h4>Documentos — <?= e(mb_strtolower($docFilters[$docFilter])) ?></h4>
+                    <p class="sa-card-sub"><?= count($docs) ?> documento(s)<?= $docFilter === 'pending' ? ' a aguardar revisão' : '' ?></p>
                 </div>
 
                 <?php if (count($docs) > 0): ?>
                     <div class="sa-toolbar">
                         <div class="sa-search">
                             <i class="bi bi-search"></i>
-                            <input type="text" id="docSearch" placeholder="Procurar por agricultor ou tipo…">
+                            <input type="text" id="docSearch" placeholder="Procurar por agricultor ou tipo…" aria-label="Procurar documentos">
                         </div>
                     </div>
                 <?php endif; ?>
             </div>
 
+            <ul class="nav nav-pills gap-1 mb-3" aria-label="Filtrar documentos">
+                <?php foreach ($docFilters as $k => $label): ?>
+                    <li class="nav-item">
+                        <a class="nav-link py-1 px-3<?= $k === $docFilter ? ' active' : '' ?>" <?= $k === $docFilter ? 'aria-current="page"' : '' ?> href="?docs=<?= e($k) ?>#documentos">
+                            <?= e($label) ?> <span class="badge text-bg-light ms-1"><?= (int)($docCounts[$k] ?? 0) ?></span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+
             <?php if (empty($docs)): ?>
                 <div class="empty-state py-5">
                     <i class="bi bi-file-earmark-check" style="font-size:2.5rem;"></i>
-                    <p class="mt-3 mb-0">Não há documentos pendentes.</p>
+                    <p class="mt-3 mb-0"><?= $docFilter === 'pending' ? 'Não há documentos pendentes.' : 'Nenhum documento neste filtro.' ?></p>
                 </div>
             <?php else: ?>
                 <div class="sa-scroll-x">
@@ -328,8 +366,9 @@ include __DIR__.'/../includes/header.php';
                             $search = strtolower(($d['farmer_name'] ?? '') . ' ' . ($d['document_type'] ?? ''));
                             $expires = $d['expires_at'] ?? '';
                             $expiresTs = $expires ? strtotime($expires) : null;
-                            $isExpired = $expiresTs && $expiresTs < time();
-                            $isSoon = $expiresTs && !$isExpired && $expiresTs < strtotime('+30 days');
+                            $daysLeft = document_days_left($expires ?: null);
+                            $isExpired = $daysLeft !== null && $daysLeft < 0;
+                            $isSoon = $daysLeft !== null && !$isExpired && $daysLeft <= 30;
                         ?>
                             <tr data-search="<?= e($search) ?>">
                                 <td>
@@ -361,13 +400,17 @@ include __DIR__.'/../includes/header.php';
                                     <?php if ($expiresTs): ?>
                                         <span class="sa-date-badge sa-date-<?= $isExpired ? 'danger' : ($isSoon ? 'warn' : 'ok') ?>">
                                             <i class="bi bi-calendar3"></i>
-                                            <?= date('d M Y', $expiresTs) ?>
+                                            <?= date('d/m/Y', $expiresTs) ?>
                                         </span>
+                                        <div class="mt-1"><?= document_expiry_badge($expires, $d['status']) ?></div>
                                     <?php else: ?>
                                         <span class="sa-date-badge sa-date-muted">
                                             <i class="bi bi-dash-circle"></i>
                                             sem validade
                                         </span>
+                                    <?php endif; ?>
+                                    <?php if ($docFilter !== 'pending'): ?>
+                                        <div class="mt-1"><span class="badge text-bg-<?= e(document_status_class($d['status'])) ?>"><?= e(document_status_label($d['status'])) ?></span></div>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end sa-doc-col-action">
@@ -378,9 +421,9 @@ include __DIR__.'/../includes/header.php';
 
                                         <div class="sa-pay-control">
                                             <select name="status" class="sa-pay-select" aria-label="Alterar estado do documento">
-                                                <option value="approved">Aprovar</option>
-                                                <option value="rejected">Rejeitar</option>
-                                                <option value="expired">Expirado</option>
+                                                <?php if (!$isExpired): ?><option value="approved"<?= $d['status'] === 'approved' ? ' selected' : '' ?>>Aprovar</option><?php endif; ?>
+                                                <option value="rejected"<?= $d['status'] === 'rejected' ? ' selected' : '' ?>>Rejeitar</option>
+                                                <option value="expired"<?= ($d['status'] === 'expired' || $isExpired) ? ' selected' : '' ?>>Expirado</option>
                                             </select>
                                             <i class="bi bi-chevron-down sa-pay-chevron"></i>
                                         </div>

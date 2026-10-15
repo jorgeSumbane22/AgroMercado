@@ -1,140 +1,52 @@
 </main>
 
-<footer class="footer-premium">
-    <div class="footer-glow" aria-hidden="true"></div>
+<footer class="site-footer">
+    <div class="container">
+        <div class="site-footer-top">
+            <div class="site-footer-brand">
+                <a class="brand-pro" href="<?= base_path('index.php') ?>">
+                    <span class="brand-pro-icon"><i class="bi bi-basket2-fill" aria-hidden="true"></i></span>
+                    <span class="brand-pro-text">Agro<em>Mercado</em></span>
+                </a>
+                <p>Uma plataforma que aproxima produtores e compradores, encurtando a cadeia alimentar em Moçambique.</p>
+            </div>
 
-    <div class="container position-relative">
+            <nav class="site-footer-col" aria-label="Explorar">
+                <h2 class="footer-heading">Explorar</h2>
+                <ul class="footer-links">
+                    <li><a href="<?= base_path('marketplace.php') ?>">Marketplace</a></li>
+                    <li><a href="<?= base_path('index.php#categorias') ?>">Categorias</a></li>
+                    <li><a href="<?= base_path('index.php#como-funciona') ?>">Como funciona</a></li>
+                </ul>
+            </nav>
 
-        <!-- ============ TOPO: Marca grande + Newsletter ============ -->
-        <div class="footer-hero">
-            <div class="row align-items-end g-4">
-                <div class="col-lg-7">
-                    <span class="footer-eyebrow">Do campo para o mercado</span>
-                    <h2 class="footer-title">
-                        Agro<em>Mercado</em>
-                    </h2>
-                    <p class="footer-tagline">
-                        Uma plataforma que aproxima produtores e compradores,
-                        encurtando a cadeia alimentar em Moçambique.
-                    </p>
-                </div>
-                <div class="col-lg-5">
-                    <form class="footer-newsletter" action="<?= base_path('newsletter.php') ?>" method="post">
-                        <label class="footer-newsletter-label">
-                            <i class="bi bi-envelope-paper-fill"></i>
-                            Receba novidades e produtos frescos
-                        </label>
-                        <div class="footer-newsletter-row">
-                            <input type="email" name="email" placeholder="O seu email" required>
-                            <button type="submit">
-                                Subscrever <i class="bi bi-arrow-right"></i>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+            <nav class="site-footer-col" aria-label="Conta">
+                <h2 class="footer-heading">Conta</h2>
+                <ul class="footer-links">
+                    <li><a href="<?= base_path('login.php') ?>">Entrar</a></li>
+                    <li><a href="<?= base_path('cadastro.php') ?>">Criar conta</a></li>
+                    <li><a href="<?= base_path('carrinho.php') ?>">Carrinho</a></li>
+                </ul>
+            </nav>
+
+            <div class="site-footer-col">
+                <h2 class="footer-heading">Contacto</h2>
+                <ul class="footer-contact-list">
+                    <li><i class="bi bi-geo-alt" aria-hidden="true"></i> <span>Maputo, Moçambique</span></li>
+                    <li><i class="bi bi-envelope" aria-hidden="true"></i> <span>jsumbane22@gmail.com</span></li>
+                    <li><i class="bi bi-clock" aria-hidden="true"></i> <span>Seg – Sex, 8h às 18h</span></li>
+                </ul>
             </div>
         </div>
 
-        <!-- ============ MEIO: Links ============ -->
-        <div class="footer-links-grid">
-            <div class="row g-5">
-
-                <!-- Explorar -->
-                <div class="col-6 col-md-3">
-                    <h6 class="footer-heading">Explorar</h6>
-                    <ul class="footer-links">
-                        <li>
-                            <a href="<?= base_path('marketplace.php') ?>">
-                                <i class="bi bi-shop"></i> Marketplace
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('index.php#categorias') ?>">
-                                <i class="bi bi-grid"></i> Categorias
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('index.php#como-funciona') ?>">
-                                <i class="bi bi-info-circle"></i> Como funciona
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-
-                <!-- Conta -->
-                <div class="col-6 col-md-3">
-                    <h6 class="footer-heading">Conta</h6>
-                    <ul class="footer-links">
-                        <li>
-                            <a href="<?= base_path('login.php') ?>">
-                                <i class="bi bi-box-arrow-in-right"></i> Entrar
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('cadastro.php') ?>">
-                                <i class="bi bi-person-plus"></i> Criar conta
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('carrinho.php') ?>">
-                                <i class="bi bi-bag"></i> Carrinho
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-
-                <!-- Legal -->
-                <div class="col-6 col-md-3">
-                    <h6 class="footer-heading">Legal</h6>
-                    <ul class="footer-links">
-                        <li>
-                            <a href="<?= base_path('termos.php') ?>">
-                                <i class="bi bi-file-text"></i> Termos
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('privacidade.php') ?>">
-                                <i class="bi bi-shield-check"></i> Privacidade
-                            </a>
-                        </li>
-                        <li>
-                            <a href="<?= base_path('cookies.php') ?>">
-                                <i class="bi bi-cookie"></i> Cookies
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-
-                <!-- Contacto -->
-                <div class="col-6 col-md-3">
-                    <h6 class="footer-heading">Contacto</h6>
-                    <ul class="footer-contact-list">
-                        <li>
-                            <i class="bi bi-geo-alt-fill"></i>
-                            <span>Maputo, Moçambique</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-envelope-fill"></i>
-                            <span>jsumbane22@gmail.com</span>
-                        </li>
-                        <li>
-                            <i class="bi bi-clock-fill"></i>
-                            <span>Seg – Sex, 8h às 18h</span>
-                        </li>
-                    </ul>
-                </div>
-
-            </div>
+        <div class="site-footer-bottom">
+            <span>© <?= date('Y') ?> AgroMercado — comércio agrícola em Moçambique</span>
+            <nav aria-label="Legal">
+                <a href="<?= base_path('termos.php') ?>">Termos</a>
+                <a href="<?= base_path('privacidade.php') ?>">Privacidade</a>
+                <a href="<?= base_path('cookies.php') ?>">Cookies</a>
+            </nav>
         </div>
-
-        <!-- ============ BOTTOM ============ -->
-        <div class="footer-bottom">
-            <p class="footer-copy">
-                <i class="bi bi-c-circle"></i>
-                <?= date('Y') ?> AgroMercado — Plataforma demonstrativa para comércio agrícola.
-            </p>
-        </div>
-
     </div>
 </footer>
 

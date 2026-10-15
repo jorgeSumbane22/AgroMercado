@@ -42,8 +42,11 @@ if (is_post()) {
             flash('warning', 'Este produto já tem pedidos associados e não pode ser eliminado. Pode desativá-lo para deixar de o vender.');
         } else {
             try {
+                // Recolhe as imagens (capa + galeria) antes de apagar: as linhas de product_images caem em cascata.
+                $imagePaths = product_image_paths($pdo, $id);
                 $pdo->prepare('DELETE FROM products WHERE id=? AND farmer_id=?')->execute([$id, $fid]);
                 delete_product_image_file($prod['main_image']);
+                delete_product_files($imagePaths);
                 audit(user()['id'], 'delete', 'products', 'Agricultor removeu o produto #'.$id.' ('.$prod['name'].')');
                 flash('success', 'Produto removido.');
             } catch (PDOException $ex) {

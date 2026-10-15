@@ -64,14 +64,31 @@ if (is_post()) {
             $pdo->prepare("UPDATE order_items SET status='cancelled' WHERE id IN ($in)")->execute($ids);
             restore_item_stock($pdo, $target, 'Cancelamento do pedido ' . $order['order_number'] . ' (SuperAdmin)');
             $pdo->prepare('UPDATE orders SET cancel_reason=? WHERE id=?')->execute([$reason, $id]);
+            $payBefore = order_payment_locked($pdo, $id);
             $new = recalc_order_status($pdo, $id);
+            // Pagamento pago: regista pedido de reembolso (processado em admin/reembolsos.php).
+            $refundId = ($payBefore && $payBefore['status'] === 'paid') ? create_refund_for_cancel($pdo, $id, cancel_refund_amount($pdo, $id, $new, $ids), 'Cancelamento pela administração: ' . $reason) : null;
             notify_buyer_of_order($id, 'Pedido cancelado', 'O pedido ' . $order['order_number'] . ' foi cancelado pela administração' . ($new !== 'cancelled' ? ' (itens não entregues)' : '') . '. Motivo: ' . $reason);
             foreach (array_unique(array_map(fn($i) => (int)$i['farmer_user_id'], $target)) as $fu) {
                 notify($fu, 'Pedido cancelado', 'Os seus itens do pedido ' . $order['order_number'] . ' foram cancelados pela administração. Motivo: ' . $reason);
             }
-            audit(user()['id'], 'cancel', 'orders', 'Admin cancelou ' . count($ids) . ' item(ns) do pedido ' . $order['order_number'] . ' (estado: ' . $new . '). Motivo: ' . $reason);
+            audit(user()['id'], 'cancel', 'orders', 'Admin cancelou ' . count($ids) . ' item(ns) do pedido ' . $order['order_number'] . ' (estado: ' . $new . '). Motivo: ' . $reason . ($refundId ? '; reembolso #' . $refundId . ' pedido' : ''));
             $pdo->commit();
-            flash('success', 'Pedido cancelado. Stock reposto para ' . count($ids) . ' item(ns).');
+            flash('success', 'Pedido cancelado. Stock reposto para ' . count($ids) . ' item(ns).' . ($refundId ? ' Foi criado um pedido de reembolso.' : ''));
+        } elseif ($action === 'refund') {
+            // Reembolso manual: até ao valor pago menos reembolsos já pedidos/processados.
+            $amount = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? '0')), 2);
+            $reason = mb_substr(trim((string)($_POST['reason'] ?? '')), 0, 255);
+            $pay = order_payment_locked($pdo, $id);
+            if (!$pay || $pay['status'] !== 'paid') throw new DomainException('Só é possível reembolsar pedidos com pagamento pago.');
+            if ($reason === '') throw new DomainException('Indique o motivo do reembolso.');
+            $max = order_refundable_amount($pdo, $id);
+            if ($amount <= 0 || $amount > $max) throw new DomainException('Valor inválido. Máximo reembolsável: ' . money($max) . '.');
+            $pdo->prepare('INSERT INTO refunds(order_id,payment_id,amount,reason,status) VALUES(?,?,?,?,"requested")')->execute([$id, $pay['id'], $amount, $reason]);
+            $rid = (int)$pdo->lastInsertId();
+            audit(user()['id'], 'create', 'refunds', 'Reembolso manual #' . $rid . ' de ' . number_format($amount, 2, '.', '') . ' MT no pedido ' . $order['order_number'] . '. Motivo: ' . $reason);
+            $pdo->commit();
+            flash('success', 'Pedido de reembolso #' . $rid . ' criado. Processe-o em Reembolsos.');
         } else {
             throw new DomainException('Ação inválida.');
         }
@@ -106,6 +123,13 @@ $rank = order_status_rank();
 $nextOptions = array_keys($nextOptions);
 usort($nextOptions, fn($a, $b) => $rank[$a] <=> $rank[$b]);
 $canCancel = (bool)array_filter($items, fn($i) => !in_array($i['status'], ['cancelled', 'delivered'], true));
+$s = $pdo->prepare('SELECT r.*, u.name AS processed_name FROM refunds r LEFT JOIN users u ON u.id = r.processed_by WHERE r.order_id = ? ORDER BY r.id');
+$s->execute([$id]);
+$refunds = $s->fetchAll();
+$refundable = order_refundable_amount($pdo, $id);
+$couponCode = null;
+if ($order['coupon_id']) { $s = $pdo->prepare('SELECT code FROM coupons WHERE id = ?'); $s->execute([$order['coupon_id']]); $couponCode = $s->fetchColumn() ?: null; }
+$commissionTotal = array_sum(array_map(fn($i) => (float)$i['commission_amount'], $activeItems));
 
 $page_title = 'Pedido ' . $order['order_number'];
 include __DIR__.'/../includes/header.php';
@@ -129,6 +153,9 @@ include __DIR__.'/../includes/header.php';
             <div class="sa-hero-actions">
                 <a href="<?= base_path('admin/pedidos.php') ?>" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Pedidos
+                </a>
+                <a href="<?= base_path('recibo.php?id=' . (int)$id) ?>" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                    <i class="bi bi-printer"></i> Recibo
                 </a>
                 <?php if ($order['payment_id']): ?>
                     <a href="<?= base_path('admin/pagamentos.php?q=' . urlencode($order['order_number'])) ?>" class="btn btn-outline-secondary">
@@ -166,6 +193,7 @@ include __DIR__.'/../includes/header.php';
                                     <th class="text-end">Preço</th>
                                     <th class="text-end">Qtd.</th>
                                     <th class="text-end">Subtotal</th>
+                                    <th class="text-end" title="Comissão da plataforma / valor do agricultor">Comissão · Agricultor</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -179,14 +207,18 @@ include __DIR__.'/../includes/header.php';
                                     <td class="text-end"><?= money($it['unit_price']) ?></td>
                                     <td class="text-end"><?= e(rtrim(rtrim(number_format((float)$it['quantity'], 2, ',', ''), '0'), ',')) ?> <?= e($it['unit']) ?></td>
                                     <td class="text-end"><strong><?= money($it['subtotal']) ?></strong></td>
+                                    <td class="text-end small"><?= money($it['commission_amount']) ?> <span class="text-muted">(<?= e(rtrim(rtrim(number_format((float)$it['commission_rate'], 2, ',', ''), '0'), ',')) ?>%)</span><br><?= money($it['farmer_amount']) ?><?php if ($it['payout_id']): ?> <a href="<?= base_path('admin/repasses.php?id=' . (int)$it['payout_id']) ?>" class="badge text-bg-light text-decoration-none">repasse #<?= (int)$it['payout_id'] ?></a><?php endif; ?></td>
                                     <td><?= order_status_badge($it['status']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
                             <tfoot>
-                                <tr><td colspan="4" class="text-end">Subtotal</td><td class="text-end"><?= money($order['subtotal']) ?></td><td></td></tr>
-                                <tr><td colspan="4" class="text-end">Taxa de entrega</td><td class="text-end"><?= money($order['delivery_fee']) ?></td><td></td></tr>
-                                <tr><td colspan="4" class="text-end"><strong>Total</strong></td><td class="text-end"><strong><?= money($order['total']) ?></strong></td><td></td></tr>
+                                <tr><td colspan="4" class="text-end">Subtotal</td><td class="text-end"><?= money($order['subtotal']) ?></td><td class="text-end small text-muted">Comissão: <?= money($commissionTotal) ?></td><td></td></tr>
+                                <?php if ((float)$order['discount'] > 0): ?>
+                                <tr><td colspan="4" class="text-end">Desconto<?= $couponCode ? ' (cupão ' . e($couponCode) . ')' : '' ?></td><td class="text-end text-success">−<?= money($order['discount']) ?></td><td class="text-end small text-muted">absorvido pela plataforma</td><td></td></tr>
+                                <?php endif; ?>
+                                <tr><td colspan="4" class="text-end">Taxa de entrega</td><td class="text-end"><?= money($order['delivery_fee']) ?></td><td></td><td></td></tr>
+                                <tr><td colspan="4" class="text-end"><strong>Total</strong></td><td class="text-end"><strong><?= money($order['total']) ?></strong></td><td></td><td></td></tr>
                             </tfoot>
                         </table>
                     </div>
@@ -269,6 +301,30 @@ include __DIR__.'/../includes/header.php';
                         <p class="mb-0 small">Pago em: <?= $order['pay_paid_at'] ? date('d/m/Y H:i', strtotime($order['pay_paid_at'])) : '—' ?></p>
                     <?php else: ?>
                         <p class="text-muted mb-0">Sem registo de pagamento. Estado no pedido: <?= e(payment_status_label($order['payment_status'])) ?></p>
+                    <?php endif; ?>
+                </article>
+
+                <article class="content-card sa-card" id="reembolsos">
+                    <div class="card-heading"><div><h4><i class="bi bi-arrow-counterclockwise"></i> Reembolsos</h4><p class="sa-card-sub">Reembolsável: <?= money($refundable) ?></p></div><a href="<?= base_path('admin/reembolsos.php?q=' . urlencode($order['order_number'])) ?>" class="small">Gerir</a></div>
+                    <?php if (!$refunds): ?>
+                        <p class="text-muted small">Sem reembolsos.</p>
+                    <?php else: ?>
+                        <ul class="list-unstyled small mb-3">
+                            <?php foreach ($refunds as $rf): ?>
+                                <li class="mb-2">#<?= (int)$rf['id'] ?> · <strong><?= money($rf['amount']) ?></strong> <span class="badge text-bg-<?= e(refund_status_class($rf['status'])) ?>"><?= e(refund_status_label($rf['status'])) ?></span><br><span class="text-muted"><?= date('d/m/Y H:i', strtotime($rf['created_at'])) ?><?= $rf['reason'] ? ' · ' . e($rf['reason']) : '' ?><?= $rf['reference'] ? ' · Ref. ' . e($rf['reference']) : '' ?></span></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    <?php if ($order['payment_id'] && $order['pay_status'] === 'paid' && $refundable > 0): ?>
+                        <form method="post" data-confirm="Criar um pedido de reembolso para este pedido?">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="refund">
+                            <input type="hidden" name="id" value="<?= (int)$id ?>">
+                            <label class="form-label small" for="refundAmount">Reembolso manual (máx. <?= money($refundable) ?>)</label>
+                            <input id="refundAmount" name="amount" type="number" step="0.01" min="0.01" max="<?= e(number_format($refundable, 2, '.', '')) ?>" class="form-control form-control-sm mb-2" required>
+                            <input name="reason" class="form-control form-control-sm mb-2" maxlength="255" required placeholder="Motivo" aria-label="Motivo do reembolso">
+                            <button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-arrow-counterclockwise"></i> Criar reembolso</button>
+                        </form>
                     <?php endif; ?>
                 </article>
             </div>

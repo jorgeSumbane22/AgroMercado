@@ -29,22 +29,24 @@ if (is_post()) {
 
     try {
         if ($action === 'document') {
-            $path = save_farmer_document($_FILES['document'] ?? []);
-
             $type = in_array($_POST['document_type'] ?? '', ['identity','license','certificate','other'], true)
                 ? $_POST['document_type']
                 : 'other';
 
+            // Validade: obrigatória para identificação e licença; tem de ser uma data futura.
             $expires = trim((string)($_POST['expires_at'] ?? ''));
+            if ($expires === '' && document_type_requires_expiry($type)) throw new RuntimeException('Indique a data de validade do documento (' . mb_strtolower(document_type_label($type)) . ').');
             if ($expires !== '') {
                 $dt = DateTime::createFromFormat('!Y-m-d', $expires);
                 if (!$dt || $dt->format('Y-m-d') !== $expires) throw new RuntimeException('Data de validade inválida.');
+                if ($dt < new DateTime('today')) throw new RuntimeException('O documento já expirou. Envie um documento dentro da validade.');
             }
 
+            $path = save_farmer_document($_FILES['document'] ?? []);
             $pdo->prepare('INSERT INTO farmer_documents(farmer_id, document_type, file_path, expires_at) VALUES(?,?,?,?)')
                 ->execute([$fid, $type, $path, $expires ?: null]);
 
-            audit(current_user_id(), 'upload', 'farmer_documents', 'Agricultor enviou documento');
+            audit(current_user_id(), 'upload', 'farmer_documents', 'Agricultor enviou documento (' . $type . ($expires ? ', válido até ' . $expires : '') . ')');
             flash('success', 'Documento enviado para análise.');
 
         } elseif ($action === 'password') {
@@ -60,6 +62,7 @@ if (is_post()) {
             if ($new === $current) throw new RuntimeException('A nova palavra-passe deve ser diferente da atual.');
 
             $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([password_hash($new, PASSWORD_DEFAULT), current_user_id()]);
+            revoke_remember_tokens(current_user_id());
             session_regenerate_id(true);
             audit(current_user_id(), 'password_change', 'users', 'Agricultor alterou a palavra-passe');
             flash('success', 'Palavra-passe alterada com sucesso.');
@@ -108,6 +111,7 @@ if (is_post()) {
 /* ============================================================
    DOCUMENTOS
    ============================================================ */
+maybe_check_document_expiry();
 $docs = [];
 try {
     $s = $pdo->prepare('SELECT * FROM farmer_documents WHERE farmer_id = ? ORDER BY created_at DESC');
@@ -132,10 +136,14 @@ $counts = [
     'docs_approved' => 0,
     'docs_pending'  => 0,
     'docs_rejected' => 0,
+    'docs_expired'  => 0,
+    'docs_expiring' => 0,
 ];
 foreach ($docs as $d) {
     $st = $d['status'] ?? 'pending';
-    if ($st === 'approved') $counts['docs_approved']++;
+    $left = document_days_left($d['expires_at'] ?? null);
+    if ($st === 'expired' || ($st === 'approved' && $left !== null && $left < 0)) $counts['docs_expired']++;
+    elseif ($st === 'approved') { $counts['docs_approved']++; if ($left !== null && $left <= 30) $counts['docs_expiring']++; }
     elseif ($st === 'rejected') $counts['docs_rejected']++;
     else $counts['docs_pending']++;
 }
@@ -204,7 +212,11 @@ include __DIR__.'/../includes/header.php';
                 <span class="sa-kpi-label">Documentos aprovados</span>
                 <strong class="sa-kpi-value"><?= $counts['docs_approved'] ?></strong>
                 <footer class="sa-kpi-foot">
-                    <span class="sa-kpi-sub"><i class="bi bi-check2-circle"></i> validados</span>
+                    <?php if ($counts['docs_expired'] || $counts['docs_expiring']): ?>
+                        <span class="sa-kpi-sub text-danger"><i class="bi bi-calendar-x"></i> <?= $counts['docs_expiring'] ?> a expirar · <?= $counts['docs_expired'] ?> expirado(s)</span>
+                    <?php else: ?>
+                        <span class="sa-kpi-sub"><i class="bi bi-check2-circle"></i> validados</span>
+                    <?php endif; ?>
                 </footer>
             </article>
 
@@ -417,8 +429,8 @@ include __DIR__.'/../includes/header.php';
                             <label class="form-label" for="dType">Tipo</label>
                             <div class="sa-select-wrap">
                                 <select id="dType" name="document_type" class="sa-select">
-                                    <option value="identity">Identidade</option>
-                                    <option value="license">Licença</option>
+                                    <option value="identity" data-expiry-required="1">Identidade</option>
+                                    <option value="license" data-expiry-required="1">Licença</option>
                                     <option value="certificate">Certificado</option>
                                     <option value="other">Outro</option>
                                 </select>
@@ -434,8 +446,9 @@ include __DIR__.'/../includes/header.php';
                         </div>
 
                         <div class="sa-field">
-                            <label class="form-label" for="dExpires">Validade</label>
-                            <input id="dExpires" type="date" name="expires_at" class="form-control">
+                            <label class="form-label" for="dExpires">Validade <span class="sa-req" id="dExpiresReq">*</span></label>
+                            <input id="dExpires" type="date" name="expires_at" class="form-control" min="<?= date('Y-m-d') ?>" required aria-describedby="dExpiresHint">
+                            <small class="sa-field-hint" id="dExpiresHint">Obrigatória para identidade e licença; opcional para os restantes.</small>
                         </div>
 
                         <button type="submit" class="sa-submit">
@@ -486,13 +499,16 @@ include __DIR__.'/../includes/header.php';
                                         <i class="bi bi-<?= $typeIcon ?>"></i>
                                     </span>
                                     <div class="sa-doc-info">
-                                        <strong><?= e(ucfirst($doc['document_type'])) ?></strong>
+                                        <strong><?= e(document_type_label($doc['document_type'])) ?></strong>
                                         <small>
-                                            <?= date('d M Y', strtotime($doc['created_at'] ?? 'now')) ?>
+                                            Enviado a <?= date('d/m/Y', strtotime($doc['created_at'] ?? 'now')) ?>
                                             <?php if (!empty($doc['expires_at'])): ?>
-                                                · válido até <?= date('d M Y', strtotime($doc['expires_at'])) ?>
+                                                · válido até <?= date('d/m/Y', strtotime($doc['expires_at'])) ?>
                                             <?php endif; ?>
                                         </small>
+                                        <?php if (!empty($doc['expires_at']) && $st !== 'rejected'): ?>
+                                            <div class="mt-1"><?= document_expiry_badge($doc['expires_at'], $st) ?></div>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="sa-doc-side">
                                         <span class="sa-badge sa-badge-<?= $meta[0] ?> sa-badge-sm">
@@ -544,6 +560,23 @@ include __DIR__.'/../includes/header.php';
             }
             preview.src = URL.createObjectURL(file);
         });
+    }
+
+    /* ============================================================
+       Validade obrigatória só para identidade e licença
+       ============================================================ */
+    var dType = document.getElementById('dType');
+    var dExp  = document.getElementById('dExpires');
+    var dReq  = document.getElementById('dExpiresReq');
+    if (dType && dExp) {
+        var syncExp = function () {
+            var opt = dType.options[dType.selectedIndex];
+            var req = !!(opt && opt.dataset.expiryRequired);
+            dExp.required = req;
+            if (dReq) dReq.style.display = req ? '' : 'none';
+        };
+        dType.addEventListener('change', syncExp);
+        syncExp();
     }
 
     /* ============================================================

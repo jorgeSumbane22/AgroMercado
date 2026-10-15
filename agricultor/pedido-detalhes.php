@@ -48,11 +48,19 @@ $items = $s->fetchAll();
 $itemsCount = count($items);
 $itemsTotal = 0;
 $itemsQty   = 0;
+$itemsCommission = 0;
+$itemsNet = 0;
 foreach ($items as $i) {
     if ($i['status'] === 'cancelled') continue;
     $itemsTotal += (float)($i['subtotal'] ?? 0);
     $itemsQty   += (float)($i['quantity'] ?? 0);
+    $itemsCommission += (float)($i['commission_amount'] ?? 0);
+    $itemsNet += (float)($i['farmer_amount'] ?? 0);
 }
+
+/* Mensagens com o comprador (fio deste agricultor); ao abrir, as recebidas ficam lidas. */
+$thread = order_thread($id, (int)$fid);
+mark_thread_read($id, (int)$fid, (int)user()['id']);
 
 /* ============================================================
    HELPERS DE ESTADO / TIMELINE
@@ -132,9 +140,9 @@ include __DIR__.'/../includes/header.php';
                 <a href="<?= base_path('agricultor/pedidos.php') ?>" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Voltar
                 </a>
-                <button class="btn btn-primary" onclick="window.print()">
-                    <i class="bi bi-printer"></i> Imprimir
-                </button>
+                <a class="btn btn-primary" href="<?= base_path('recibo.php?id=' . (int)$order['id']) ?>" target="_blank" rel="noopener">
+                    <i class="bi bi-printer"></i> Recibo
+                </a>
             </div>
         </header>
 
@@ -243,6 +251,14 @@ include __DIR__.'/../includes/header.php';
                                 <strong><?= money($itemsTotal) ?></strong>
                             </div>
                             <div class="sa-order-summary-row">
+                                <span>Comissão da plataforma</span>
+                                <strong>−<?= money($itemsCommission) ?></strong>
+                            </div>
+                            <div class="sa-order-summary-row">
+                                <span>Valor líquido a receber</span>
+                                <strong class="text-success"><?= money($itemsNet) ?></strong>
+                            </div>
+                            <div class="sa-order-summary-row">
                                 <span>Subtotal do pedido</span>
                                 <strong><?= money($order['subtotal']) ?></strong>
                             </div>
@@ -262,6 +278,17 @@ include __DIR__.'/../includes/header.php';
                             </div>
                         </div>
                     <?php endif; ?>
+                </article>
+
+                <!-- Mensagens -->
+                <article class="content-card sa-card mt-4" id="mensagens">
+                    <div class="card-heading">
+                        <div>
+                            <h4>Mensagens com o comprador</h4>
+                            <p class="sa-card-sub">Conversa sobre os seus itens deste pedido</p>
+                        </div>
+                    </div>
+                    <?= order_thread_html($thread, (int)$order['id'], (int)$fid, (int)user()['id'], 'Conversa com ' . ($order['buyer_name'] ?? 'o comprador')) ?>
                 </article>
 
             </div>

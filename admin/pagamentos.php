@@ -80,7 +80,9 @@ $perPage = 20;
 $c = $pdo->prepare('SELECT COUNT(*)' . $fromSql . $whereSql);
 $c->execute($params);
 $totalFiltered = (int)$c->fetchColumn();
-$s = $pdo->prepare('SELECT pay.*, o.order_number, o.status AS order_status, u.name AS buyer_name' . $fromSql . $whereSql . ' ORDER BY pay.created_at DESC, pay.id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset);
+$s = $pdo->prepare('SELECT pay.*, o.order_number, o.status AS order_status, o.discount, u.name AS buyer_name,
+    (SELECT COUNT(*) FROM refunds r WHERE r.order_id = o.id) AS refunds_count,
+    (SELECT COUNT(*) FROM refunds r WHERE r.order_id = o.id AND r.status = "requested") AS refunds_open' . $fromSql . $whereSql . ' ORDER BY pay.created_at DESC, pay.id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset);
 $s->execute($params);
 $payments = $s->fetchAll();
 
@@ -96,6 +98,7 @@ foreach ($pdo->query('SELECT status, COUNT(*) n, COALESCE(SUM(amount),0) a FROM 
 }
 $methodCount = [];
 foreach ($pdo->query('SELECT method, COUNT(*) n FROM payments GROUP BY method ORDER BY n DESC') as $row) $methodCount[payment_method_label($row['method'])] = (int)$row['n'];
+$refundsOpen = (int)$pdo->query('SELECT COUNT(*) FROM refunds WHERE status = "requested"')->fetchColumn();
 $hasFilters = $fStatus !== '' || $fMethod !== '' || $q !== '';
 $exportQuery = http_build_query(array_filter(['status' => $fStatus ?: null, 'method' => $fMethod ?: null, 'q' => $q !== '' ? $q : null, 'export' => 'csv']));
 
@@ -126,6 +129,10 @@ include __DIR__.'/../includes/header.php';
             <div class="sa-hero-actions">
                 <a href="<?= base_path('admin/dashboard.php') ?>" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Dashboard
+                </a>
+                <a href="<?= base_path('admin/reembolsos.php') ?>" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reembolsos
+                    <?php if ($refundsOpen > 0): ?><span class="sa-pill"><?= $refundsOpen ?></span><?php endif; ?>
                 </a>
                 <a href="<?= base_path('admin/pedidos.php') ?>" class="btn btn-primary">
                     <i class="bi bi-receipt"></i> Ver pedidos
@@ -296,6 +303,8 @@ include __DIR__.'/../includes/header.php';
                                 </td>
                                 <td class="text-end">
                                     <strong class="sa-price"><?= money($p['amount']) ?></strong>
+                                    <?php if ((float)$p['discount'] > 0): ?><br><small class="text-success" title="Desconto de cupão já deduzido">desc. −<?= money($p['discount']) ?></small><?php endif; ?>
+                                    <?php if ((int)$p['refunds_count'] > 0): ?><br><a href="<?= base_path('admin/reembolsos.php?q=' . urlencode($p['order_number'])) ?>" class="small<?= (int)$p['refunds_open'] > 0 ? ' text-danger' : '' ?>"><i class="bi bi-arrow-counterclockwise"></i> <?= (int)$p['refunds_count'] ?> reembolso(s)<?= (int)$p['refunds_open'] > 0 ? ' · ' . (int)$p['refunds_open'] . ' por tratar' : '' ?></a><?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="sa-method">

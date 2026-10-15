@@ -168,12 +168,18 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <!-- Pesquisa -->
-                    <div class="filter-group">
-                        <label class="filter-label">
+                    <div class="filter-group live-search-wrap">
+                        <label class="filter-label" for="marketSearch">
                             <i class="bi bi-search"></i> Pesquisar
                         </label>
-                        <input name="q" value="<?= e($q) ?>"
-                               class="form-control" placeholder="Tomate, milho...">
+                        <input name="q" id="marketSearch" value="<?= e($q) ?>"
+                               class="form-control" placeholder="Tomate, milho..."
+                               data-live-search autocomplete="off"
+                               aria-autocomplete="list" aria-controls="marketSearchResults"
+                               aria-describedby="marketSearchHint">
+                        <span id="marketSearchHint" class="visually-hidden">Escreva pelo menos 2 letras para ver sugestões; use a seta para baixo para as percorrer.</span>
+                        <div id="marketSearchResults" class="live-search-results" data-search-results
+                             role="region" aria-label="Sugestões de produtos" aria-live="polite"></div>
                     </div>
 
                     <!-- Categoria -->
@@ -347,5 +353,53 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
 </section>
+
+<!-- ============ PESQUISA INSTANTÂNEA (resultados preenchidos por assets/js/app.js) ============ -->
+<style>
+.live-search-wrap { position: relative; }
+.live-search-results {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 1050; margin-top: .25rem;
+    background: var(--surface, #fff); color: var(--ink, #1f2937);
+    border: 1px solid var(--line, #e5e7eb); border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.12); max-height: 360px; overflow-y: auto; padding: .25rem;
+}
+.live-search-results:empty, .live-search-results.is-closed { display: none; }
+.live-search-results a {
+    display: flex; align-items: center; gap: .6rem; padding: .45rem .5rem; border-radius: 8px;
+    color: inherit; text-decoration: none; font-size: .88rem; line-height: 1.25;
+}
+.live-search-results a:hover, .live-search-results a:focus { background: rgba(46,125,50,.1); outline: none; }
+.live-search-results a:focus-visible { box-shadow: inset 0 0 0 2px var(--bs-primary, #2e7d32); }
+.live-search-results img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.live-search-results span { display: flex; flex-direction: column; min-width: 0; }
+.live-search-results small { color: var(--bs-secondary-color, #6b7280); font-size: .78rem; }
+</style>
+<script>
+(function () {
+    var input = document.getElementById('marketSearch');
+    var box = document.getElementById('marketSearchResults');
+    if (!input || !box) return;
+    var links = function () { return Array.prototype.slice.call(box.querySelectorAll('a')); };
+    var close = function () { box.classList.add('is-closed'); };
+    var open = function () { box.classList.remove('is-closed'); };
+
+    input.addEventListener('input', open);
+    input.addEventListener('focus', open);
+    input.addEventListener('keydown', function (e) {
+        var l = links();
+        if (e.key === 'ArrowDown' && l.length) { e.preventDefault(); open(); l[0].focus(); }
+        else if (e.key === 'Escape') { close(); }
+    });
+    box.addEventListener('keydown', function (e) {
+        var l = links(), i = l.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); if (i < l.length - 1) l[i + 1].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) l[i - 1].focus(); else input.focus(); }
+        else if (e.key === 'Escape') { e.preventDefault(); close(); input.focus(); }
+    });
+    // Fecha ao sair da pesquisa (clique ou Tab para fora).
+    document.addEventListener('click', function (e) { if (!e.target.closest('.live-search-wrap')) close(); });
+    box.addEventListener('focusout', function (e) { if (!e.relatedTarget || (e.relatedTarget !== input && !box.contains(e.relatedTarget))) close(); });
+})();
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

@@ -70,6 +70,20 @@ $old = [
     'district'    => (string)($product['district'] ?? ''),
 ];
 
+/* ---------- Ações da galeria (remover / usar como capa) ---------- */
+if (is_post() && isset($_POST['gallery_action'])) {
+    verify_csrf($_POST['csrf'] ?? '');
+    try {
+        [$type, $msg] = handle_gallery_action(db(), $id, $_POST) ?? ['danger', 'Ação inválida.'];
+        if ($type === 'success') audit(user()['id'], 'update', 'products', 'Admin alterou a galeria do produto #' . $id . ' (' . $_POST['gallery_action'] . ')');
+    } catch (Throwable $ex) {
+        error_log('produto-editar galeria: ' . $ex->getMessage());
+        [$type, $msg] = ['danger', 'Não foi possível alterar a galeria.'];
+    }
+    flash($type, $msg);
+    redirect(base_path('admin/produto-editar.php?id=' . $id . '#galeria'));
+}
+
 if (is_post()) {
     verify_csrf($_POST['csrf'] ?? '');
     $errors = admin_product_from_post($old);
@@ -143,6 +157,9 @@ if (is_post()) {
         if (empty($errors)) {
             // Só depois de gravar: apagar a imagem antiga se foi substituída ou removida.
             if ($finalImage !== $product['main_image']) admin_delete_product_image($product['main_image']);
+            try { $galleryErrors = add_product_images(db(), $id, $_FILES['gallery'] ?? null); }
+            catch (Throwable $ge) { error_log('produto-editar galeria: ' . $ge->getMessage()); $galleryErrors = ['erro inesperado.']; }
+            if ($galleryErrors) flash('warning', 'Algumas imagens da galeria não foram guardadas: ' . implode(' ', $galleryErrors));
             audit(user()['id'], 'update', 'products', 'Admin editou o produto #'.$id.' ('.$old['name'].')' . ($delta != 0 ? ' · stock ' . ($delta > 0 ? '+' : '') . $delta : ''));
             flash('success', 'Produto atualizado com sucesso.');
             redirect(base_path('admin/produtos.php'));
@@ -150,7 +167,8 @@ if (is_post()) {
     }
 }
 
-/* imagem atual para preview */
+/* galeria + imagem atual para preview */
+$gallery = product_gallery($id);
 $currentImgUrl = !empty($product['main_image']) ? get_product_image($product['main_image']) : '';
 
 $page_title = 'Editar produto';
@@ -205,6 +223,7 @@ include __DIR__.'/../includes/header.php';
                     </button>
                 </div>
             </form>
+            <?= product_gallery_action_forms($gallery, $id, base_path('admin/produto-editar.php?id=' . $id)) ?>
         </article>
 
     </section>

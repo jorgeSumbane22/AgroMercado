@@ -21,10 +21,13 @@ try{
     $ids=array_map(fn($i)=>(int)$i['id'],$target);$in=implode(',',array_fill(0,count($ids),'?'));
     $pdo->prepare("UPDATE order_items SET status=? WHERE id IN ($in)")->execute(array_merge([$status],$ids));
     if($status==='cancelled'){restore_item_stock($pdo,$target,'Cancelamento do pedido '.$o['order_number']);$pdo->prepare('UPDATE orders SET cancel_reason=? WHERE id=?')->execute([$reason,$id]);}
+    $payBefore=$status==='cancelled'?order_payment_locked($pdo,$id):null;
     $new=recalc_order_status($pdo,$id);
+    // Cancelamento com pagamento pago: pedido de reembolso (total se o pedido ficou cancelado, senão o valor dos itens cancelados).
+    $refundId=($payBefore&&$payBefore['status']==='paid')?create_refund_for_cancel($pdo,$id,cancel_refund_amount($pdo,$id,$new,$ids),'Cancelamento pelo '.($isFarmer?'agricultor':'administrador').': '.$reason):null;
     $body='O pedido '.$o['order_number'].($isFarmer?' (itens de '.$u['name'].')':'').' está agora: '.order_status_label($status).'.'.($status==='cancelled'?' Motivo: '.$reason:'');
     notify_buyer_of_order($id,'Pedido atualizado',$body);
-    audit((int)$u['id'],'update','orders','Itens do pedido '.$o['order_number'].' → '.$status.' (estado do pedido: '.$new.')');
+    audit((int)$u['id'],'update','orders','Itens do pedido '.$o['order_number'].' → '.$status.' (estado do pedido: '.$new.')'.($refundId?'; reembolso #'.$refundId.' pedido':''));
     $pdo->commit();
 }catch(Throwable $ex){if($pdo->inTransaction())$pdo->rollBack();error_log($ex->getMessage());json_out(['success'=>false,'message'=>'Não foi possível atualizar o pedido.'],500);}
 json_out(['success'=>true,'message'=>'Estado atualizado para '.order_status_label($status).'.','status'=>$new,'item_status'=>$status]);

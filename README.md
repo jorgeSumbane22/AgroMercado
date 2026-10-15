@@ -98,3 +98,19 @@ Depois de um teste de aceitação foram corrigidos: a recuperação de password 
 Novas funcionalidades: estado por agricultor em pedidos com vários agricultores; cancelamento de pedidos com reposição de stock (comprador, agricultor e SuperAdmin); avaliações pelo comprador; alteração de password e preferências de notificação; histórico de stock do agricultor; gestão de utilizadores, zonas de entrega, detalhe do pedido, moderação de avaliações e edição de categorias no SuperAdmin; paginação e exportação CSV nas listas administrativas; "Manter sessão iniciada" (30 dias). Contas bloqueadas perdem a sessão imediatamente.
 
 Os erros PHP já não são mostrados ao visitante (ficam no log do Apache); defina `APP_DEBUG=1` para os ver em desenvolvimento. A ligação à base usa `sql_mode` estrito, por isso valores inválidos geram erro em vez de serem gravados vazios.
+
+## Funcionalidades de novembro de 2026
+
+Para atualizar uma base existente, importe `database/patch_2026_11.sql` (depois do `patch_2026_10.sql`). Uma instalação nova só precisa do `schema.sql`.
+
+- **Configuração:** copie `.env.example` para `.env` e ajuste base de dados, `AGRO_BASE_PATH` (vazio na raiz de um domínio), `APP_ENV=production` e SMTP. Variáveis definidas no `.env` sobrepõem-se às Configurações do SuperAdmin.
+- **Contas e segurança:** confirmação de email no registo (obrigatória para comprar e publicar produtos), "Manter sessão iniciada" com token rotativo de 30 dias, logout por POST, verificação em dois passos (TOTP, em "Segurança da conta") e limite de pedidos nas APIs (120 por minuto por IP).
+- **Email:** fila em `email_outbox`, envio SMTP (STARTTLS/SSL) e notificações por email conforme as preferências. Sem SMTP configurado, os emails ficam registados em Admin › Emails enviados. Para processar a fila: `php tools/enviar-emails.php`.
+- **Comércio:** comissão da plataforma por item (`commission_percent`, 10% por defeito), repasses aos agricultores (Admin › Repasses e Agricultor › Financeiro), reembolsos (Admin › Reembolsos), cupões de desconto (Admin › Cupões; demo `BEMVINDO10`), faturas numeradas `FT AAAA/000000` com recibo imprimível (`recibo.php`) e mensagens entre comprador e agricultor em cada pedido.
+- **Catálogo:** galeria de até 5 fotografias por produto, pesquisa com sugestões no marketplace, validade dos documentos dos agricultores (`php tools/verificar-documentos.php`, diário), notificações do SuperAdmin e relatórios imprimíveis/PDF.
+- **Design:** novo visual (Bricolage Grotesque + Figtree, verde-campo e amarelo-milho), com modo escuro.
+- **Textos legais:** Termos, Privacidade e Cookies são rascunhos completos que devem ser revistos por um jurista antes da publicação.
+- **Backups no Windows:** `tools/backup.bat` (ou `backup.ps1`) e `tools/restaurar.ps1`; o agendamento com o Agendador de Tarefas está em `tools/README.md`.
+- **Testes:** `php tests/run.php` (31 testes unitários e de integração; criam e apagam os seus próprios dados) e `bash tests/smoke.sh`.
+
+Continua a depender de terceiros: contrato e credenciais de M-Pesa/e-Mola/cartão (o webhook HMAC está pronto), uma conta SMTP, HTTPS no servidor e a revisão jurídica dos textos legais.

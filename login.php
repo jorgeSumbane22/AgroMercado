@@ -10,29 +10,22 @@ if (is_post()) {
     if (login_blocked($email)) {
         flash('warning', 'Demasiadas tentativas. Aguarde 15 minutos antes de tentar novamente.');
     } else {
-        $s = db()->prepare('SELECT u.id,u.password,u.status,r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email=? LIMIT 1');
+        $s = db()->prepare('SELECT u.id,u.password,u.status,u.totp_enabled,u.totp_secret,r.name role FROM users u JOIN roles r ON r.id=u.role_id WHERE u.email=? LIMIT 1');
         $s->execute([$email]);
         $u = $s->fetch();
         $passwordOk = $u && password_verify($password, $u['password']);
         $valid = $passwordOk && $u['status'] === 'active';
         record_login_attempt($email, (bool)$valid);
         if ($valid) {
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = (int)$u['id'];
-            if (!empty($_POST['remember'])) {
-                // "Manter sessão iniciada": o cookie de sessão passa a durar 30 dias em vez de terminar ao fechar o browser.
-                $_SESSION['remember_me'] = true;
-                setcookie(session_name(), session_id(), [
-                    'expires'  => time() + 30 * 86400,
-                    'path'     => ini_get('session.cookie_path') ?: '/',
-                    'domain'   => ini_get('session.cookie_domain') ?: '',
-                    'secure'   => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
+            $remember = !empty($_POST['remember']);
+            if ((int)$u['totp_enabled'] === 1 && !empty($u['totp_secret'])) {
+                // 2FA ativo: a sessão só é iniciada depois do código da app autenticadora (login-2fa.php).
+                session_regenerate_id(true);
+                $_SESSION['pending_2fa'] = ['user_id' => (int)$u['id'], 'remember' => $remember, 'at' => time()];
+                redirect(base_path('login-2fa.php'));
             }
-            audit((int)$u['id'], 'login', 'auth', 'Utilizador iniciou sessão');
-            redirect(base_path($u['role']==='superadmin'?'admin/dashboard.php':($u['role']==='farmer'?'agricultor/dashboard.php':'comprador/dashboard.php')));
+            // "Manter sessão iniciada" usa um token próprio (cookie agro_remember, 30 dias); a sessão termina ao fechar o browser.
+            redirect(login_complete((int)$u['id'], $u['role'], $remember));
         }
         // Só revelamos o estado da conta quando a password está correta.
         if ($passwordOk && $u['status'] === 'blocked') flash('danger', 'Conta bloqueada. Contacte o suporte do AgroMercado para mais informações.');
@@ -107,7 +100,7 @@ include __DIR__.'/includes/header.php';
 
                 <div class="auth-head">
                     <div class="auth-logo">
-                        <i class="bi bi-leaf-fill"></i>
+                        <i class="bi bi-basket2-fill"></i>
                     </div>
                     <h1>Entrar na conta</h1>
                     <p class="text-muted">Introduza as suas credenciais para continuar.</p>

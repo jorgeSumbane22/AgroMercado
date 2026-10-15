@@ -29,7 +29,7 @@
         <div class="offcanvas offcanvas-end offcanvas-pro" id="mainMenu">
             <div class="offcanvas-header">
                 <span class="brand-pro">
-                    <span class="brand-pro-icon"><i class="bi bi-leaf-fill"></i></span>
+                    <span class="brand-pro-icon"><i class="bi bi-basket2-fill"></i></span>
                     <span class="brand-pro-text">Agro<em>Mercado</em></span>
                 </span>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
@@ -123,11 +123,15 @@
                                         <i class="bi bi-receipt"></i> Meus pedidos
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= base_path('seguranca.php') ?>">
+                                        <i class="bi bi-shield-lock"></i> Segurança da conta
+                                    </a>
+                                </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
-                                    <a class="dropdown-item nav-pro-logout" href="<?= base_path('logout.php') ?>">
-                                        <i class="bi bi-box-arrow-right"></i> Sair
-                                    </a>
+                                    <!-- Logout só por POST + CSRF -->
+                                    <?= post_button(base_path('logout.php'), [], '<i class="bi bi-box-arrow-right"></i> Sair', 'dropdown-item nav-pro-logout') ?>
                                 </li>
                             </ul>
                         </div>
@@ -148,6 +152,30 @@
         </div>
     </div>
 </nav>
+
+<?php
+/* ============================================================
+   AVISO: email por confirmar (+ link de teste em ambiente local)
+   ============================================================ */
+$navDevVerifyLink = is_local_env() ? ($_SESSION['dev_verify_link'] ?? null) : null;
+unset($_SESSION['dev_verify_link']);
+$navUnverified = logged_in() && empty(user()['email_verified_at']);
+?>
+<?php if ($navUnverified || $navDevVerifyLink): ?>
+<div class="alert alert-warning rounded-0 border-0 border-bottom mb-0 py-2 small" role="status">
+    <div class="container d-flex flex-wrap align-items-center gap-2">
+        <?php if ($navUnverified): ?>
+            <i class="bi bi-envelope-exclamation-fill"></i>
+            <span><strong>Confirme o seu email.</strong> Enviámos um link para <?= e(user()['email']) ?>.</span>
+            <?= post_button(base_path('verificar-email.php'), ['action' => 'resend', 'back' => (string)($_SERVER['REQUEST_URI'] ?? '')], '<i class="bi bi-arrow-repeat"></i> Reenviar', 'btn btn-sm btn-outline-dark py-0') ?>
+        <?php endif; ?>
+        <?php if ($navDevVerifyLink): ?>
+            <span class="w-100 text-break"><strong>Ambiente local (apenas desenvolvimento):</strong>
+                <a href="<?= e($navDevVerifyLink) ?>"><?= e($navDevVerifyLink) ?></a></span>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- ============================================================
      SCRIPT DO TEMA — funciona em qualquer página

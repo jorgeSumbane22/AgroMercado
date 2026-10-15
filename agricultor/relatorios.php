@@ -173,6 +173,9 @@ include __DIR__.'/../includes/header.php';
                 <a href="<?= base_path('agricultor/dashboard.php') ?>" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Dashboard
                 </a>
+                <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Imprimir / PDF
+                </button>
                 <a href="?period=<?= e($period) ?>&amp;export=csv" class="btn btn-outline-secondary">
                     <i class="bi bi-filetype-csv"></i> Exportar CSV
                 </a>
@@ -181,6 +184,7 @@ include __DIR__.'/../includes/header.php';
                 </a>
             </div>
         </header>
+        <p class="print-only small mb-3"><strong>AgroMercado — Relatório de vendas</strong> · <?= e(user()['name'] ?? '') ?> · gerado a <?= date('d/m/Y H:i') ?></p>
 
         <!-- ================= PERÍODO ================= -->
         <div class="sa-period">
@@ -495,6 +499,39 @@ include __DIR__.'/../includes/header.php';
         chart.update('none');
     }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
+</script>
+
+
+<!-- ================= IMPRESSÃO / PDF ================= -->
+<style>
+.print-only { display: none; }
+@media print {
+    @page { size: A4; margin: 14mm 12mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .navbar, .navbar-pro, .dashboard-sidebar, .site-footer, .sa-hero-actions, .sa-period,
+    .sa-toasts, #toast-container, .btn, form, .no-print, .skip-link { display: none !important; }
+    html, body, .dashboard-layout, .dashboard-content, .sa-dash { background: #fff !important; color: #000 !important; }
+    .dashboard-layout { display: block !important; min-height: 0 !important; }
+    .dashboard-content { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: none !important; }
+    .sa-hero { padding: 0 0 8px !important; margin-bottom: 12px !important; background: none !important; border: 0; border-bottom: 2px solid #000 !important; box-shadow: none !important; }
+    .sa-hero-title, .sa-hero-sub, .sa-hero-eyebrow { color: #000 !important; }
+    .content-card, .sa-card, .sa-kpi { box-shadow: none !important; border: 1px solid #bbb !important; break-inside: avoid; page-break-inside: avoid; }
+    .sa-kpi-grid { gap: 8px !important; }
+    .table-responsive, .sa-table-wrap, .sa-scroll-x { overflow: visible !important; }
+    table { font-size: 10pt; }
+    a { color: #000 !important; text-decoration: none !important; }
+    canvas { max-width: 100% !important; }
+    .print-only { display: block !important; }
+}
+</style>
+<script>
+/* Ajusta os gráficos ao tamanho da página antes de imprimir. */
+window.addEventListener('beforeprint', function () {
+    if (window.Chart && Chart.instances) Object.values(Chart.instances).forEach(function (c) { c.resize(); });
+});
+window.addEventListener('afterprint', function () {
+    if (window.Chart && Chart.instances) Object.values(Chart.instances).forEach(function (c) { c.resize(); });
+});
 </script>
 
 <?php include __DIR__.'/../includes/footer.php'; ?>

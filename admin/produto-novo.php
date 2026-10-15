@@ -119,6 +119,9 @@ if (is_post()) {
 
         if (empty($errors)) {
             audit(user()['id'], 'create', 'products', 'Admin criou o produto #'.$newId.' ('.$old['name'].')');
+            try { $galleryErrors = add_product_images($pdo, $newId, $_FILES['gallery'] ?? null); }
+            catch (Throwable $ge) { error_log('produto-novo galeria: ' . $ge->getMessage()); $galleryErrors = ['erro inesperado.']; }
+            if ($galleryErrors) flash('warning', 'Algumas imagens da galeria não foram guardadas: ' . implode(' ', $galleryErrors));
             flash('success', 'Produto criado com sucesso.');
             redirect(base_path('admin/produtos.php'));
         }

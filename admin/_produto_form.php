@@ -1,6 +1,6 @@
 <?php
 /* Campos partilhados por produto-novo.php e produto-editar.php.
-   Espera: $old, $categories, $farmers, $currentImgUrl (string, '' em novo produto). */
+   Espera: $old, $categories, $farmers, $currentImgUrl (string, '' em novo produto); opcional $gallery (edição). */
 if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === basename(__FILE__)) { http_response_code(404); exit; }
 $statusOptions = ['active' => 'Ativo', 'inactive' => 'Inativo', 'out_of_stock' => 'Esgotado'];
 ?>
@@ -112,6 +112,11 @@ $statusOptions = ['active' => 'Ativo', 'inactive' => 'Inativo', 'out_of_stock' =
                                 </label>
                             </div>
                         <?php endif; ?>
+                    </div>
+
+                    <div class="col-12" id="galeria">
+                        <h5 class="mt-2 mb-2"><i class="bi bi-images me-1"></i> Galeria de imagens <small class="text-muted fw-normal">(<?= count($gallery ?? []) ?>/<?= PRODUCT_GALLERY_MAX ?>)</small></h5>
+                        <?= product_gallery_fields($gallery ?? [], 'pf_gallery') ?>
                     </div>
 
                 </div>

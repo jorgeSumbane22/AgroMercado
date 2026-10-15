@@ -326,6 +326,22 @@ include __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                     </div>
+
+                    <!-- ─── Galeria ───────────────────────────── -->
+                    <div class="content-card sa-card mt-4">
+                        <div class="sa-card-head">
+                            <div class="sa-card-head-icon">
+                                <div class="sa-kpi-icon sa-icon-info">
+                                    <i class="bi bi-images"></i>
+                                </div>
+                                <div>
+                                    <h4>Galeria de imagens</h4>
+                                    <p class="sa-card-sub">Opcional · até <?= PRODUCT_GALLERY_MAX ?> imagens extra</p>
+                                </div>
+                            </div>
+                        </div>
+                        <?= product_gallery_fields($edit && !empty($product['id']) ? product_gallery((int)$product['id']) : []) ?>
+                    </div>
                 </div>
 
                 <!-- ─── Coluna lateral ─────────────────────── -->

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/_helpers.php';
 
 require_role('farmer');
+require_verified_email(); // só contas com email confirmado publicam produtos
 
 $page_title = 'Adicionar produto';
 $error = '';
@@ -82,6 +83,11 @@ if (is_post()) {
         // ---------- 6. Auditoria + feedback ----------
         audit(user()['id'], 'create', 'products', 'Agricultor criou o produto #' . $productId . ' ' . $d['name'] . ' (' . $status . ')');
         $pdo->commit();
+
+        // ---------- 7. Galeria (opcional; o produto já está gravado) ----------
+        try { $galleryErrors = add_product_images($pdo, $productId, $_FILES['gallery'] ?? null); }
+        catch (Throwable $ge) { error_log($ge->getMessage()); $galleryErrors = ['erro inesperado.']; }
+        if ($galleryErrors) flash('warning', 'Algumas imagens da galeria não foram guardadas: ' . implode(' ', $galleryErrors));
 
         if (!$verified) {
             flash('warning', 'Produto guardado como inativo: o produto será publicado após a verificação da conta.');

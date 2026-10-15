@@ -43,6 +43,9 @@ if ($role === 'superadmin') {
             'items' => [
                 ['pedidos.php',      'receipt',            'Pedidos'],
                 ['pagamentos.php',   'credit-card-fill',   'Pagamentos'],
+                ['reembolsos.php',   'arrow-counterclockwise', 'Reembolsos'],
+                ['repasses.php',     'cash-stack',         'Repasses'],
+                ['cupoes.php',       'ticket-perforated-fill', 'Cupões'],
                 ['verificacoes.php', 'patch-check-fill',   'Verificações'],
                 ['denuncias.php',    'flag-fill',          'Denúncias'],
                 ['zonas.php',        'truck',              'Zonas de entrega'],
@@ -53,6 +56,8 @@ if ($role === 'superadmin') {
             'items' => [
                 ['relatorios.php',    'file-earmark-bar-graph-fill', 'Relatórios'],
                 ['auditoria.php',     'journal-text',                'Auditoria'],
+                ['notificacoes.php',  'bell-fill',                   'Notificações'],
+                ['emails.php',        'envelope-fill',               'Emails enviados'],
                 ['configuracoes.php', 'gear-fill',                   'Configurações'],
                 ['perfil.php',        'person-fill',                 'Perfil'],
             ],
@@ -82,6 +87,7 @@ if ($role === 'superadmin') {
                 ['pedidos.php',  'receipt',               'Pedidos'],
                 ['clientes.php', 'people-fill',           'Clientes'],
                 ['vendas.php',   'graph-up-arrow',        'Vendas'],
+                ['financeiro.php', 'wallet2',             'Financeiro'],
             ],
         ],
         [

@@ -61,6 +61,14 @@ $stats = [
     'complaints'    => d_count($pdo, "SELECT COUNT(*) FROM complaints WHERE status IN ('open','in_review')"),
 ];
 $stats['verifications'] = $stats['verif_farmers'] + $stats['verif_docs'];
+// Comércio: comissão ganha (itens não cancelados de pedidos pagos), descontos, repasses e reembolsos pendentes.
+$stats['commission'] = (float)d_value($pdo, "SELECT COALESCE(SUM(oi.commission_amount),0) FROM order_items oi JOIN payments p ON p.order_id=oi.order_id WHERE p.status='paid' AND oi.status<>'cancelled'", 0);
+$stats['discounts']  = (float)d_value($pdo, "SELECT COALESCE(SUM(o.discount),0) FROM orders o JOIN payments p ON p.order_id=o.id WHERE p.status='paid' AND o.status<>'cancelled'", 0);
+$stats['payouts_pending']    = d_count($pdo, "SELECT COUNT(*) FROM farmer_payouts WHERE status='pending'");
+$stats['payouts_pending_v']  = (float)d_value($pdo, "SELECT COALESCE(SUM(amount),0) FROM farmer_payouts WHERE status='pending'", 0);
+$stats['payouts_eligible_v'] = (float)d_value($pdo, 'SELECT COALESCE(SUM(oi.farmer_amount),0)' . payout_eligible_sql(), 0);
+$stats['refunds_requested']   = d_count($pdo, "SELECT COUNT(*) FROM refunds WHERE status='requested'");
+$stats['refunds_requested_v'] = (float)d_value($pdo, "SELECT COALESCE(SUM(amount),0) FROM refunds WHERE status='requested'", 0);
 
 /* ============================================================
    RECEITA RECEBIDA — últimos 7 dias (uma só query agrupada)
@@ -273,6 +281,55 @@ include __DIR__.'/../includes/header.php';
                 </footer>
             </article>
 
+        </div>
+
+        <!-- ================= COMÉRCIO: COMISSÃO, REPASSES, REEMBOLSOS ================= -->
+        <div class="sa-kpi-grid sa-kpi-grid-4">
+            <article class="sa-kpi">
+                <header class="sa-kpi-head">
+                    <span class="sa-kpi-icon sa-icon-success"><i class="bi bi-percent"></i></span>
+                </header>
+                <span class="sa-kpi-label" title="Soma da comissão dos itens não cancelados de pedidos pagos (<?= e(rtrim(rtrim(number_format(commission_percent(), 2, ',', ''), '0'), ',')) ?>% atual)">Comissão ganha</span>
+                <strong class="sa-kpi-value"><?= money($stats['commission']) ?></strong>
+                <footer class="sa-kpi-foot">
+                    <span class="sa-kpi-sub"><i class="bi bi-ticket-perforated"></i> Descontos: −<?= money($stats['discounts']) ?></span>
+                </footer>
+            </article>
+
+            <a class="sa-kpi text-decoration-none text-reset" href="<?= base_path('admin/repasses.php') ?>">
+                <header class="sa-kpi-head">
+                    <span class="sa-kpi-icon sa-icon-info"><i class="bi bi-cash-stack"></i></span>
+                </header>
+                <span class="sa-kpi-label">Saldo elegível para repasse</span>
+                <strong class="sa-kpi-value"><?= money($stats['payouts_eligible_v']) ?></strong>
+                <footer class="sa-kpi-foot">
+                    <span class="sa-kpi-sub"><i class="bi bi-truck"></i> itens entregues e pagos</span>
+                </footer>
+            </a>
+
+            <a class="sa-kpi text-decoration-none text-reset <?= $stats['payouts_pending'] > 0 ? 'sa-kpi-warn' : '' ?>" href="<?= base_path('admin/repasses.php?status=pending') ?>">
+                <header class="sa-kpi-head">
+                    <span class="sa-kpi-icon sa-icon-warning"><i class="bi bi-hourglass-split"></i></span>
+                    <?php if ($stats['payouts_pending'] > 0): ?><span class="sa-kpi-badge sa-badge-warn">por pagar</span><?php endif; ?>
+                </header>
+                <span class="sa-kpi-label">Repasses pendentes</span>
+                <strong class="sa-kpi-value"><?= money($stats['payouts_pending_v']) ?></strong>
+                <footer class="sa-kpi-foot">
+                    <span class="sa-kpi-sub"><i class="bi bi-list-check"></i> <?= $stats['payouts_pending'] ?> repasse(s)</span>
+                </footer>
+            </a>
+
+            <a class="sa-kpi text-decoration-none text-reset <?= $stats['refunds_requested'] > 0 ? 'sa-kpi-warn' : '' ?>" href="<?= base_path('admin/reembolsos.php?status=requested') ?>">
+                <header class="sa-kpi-head">
+                    <span class="sa-kpi-icon sa-icon-danger"><i class="bi bi-arrow-counterclockwise"></i></span>
+                    <?php if ($stats['refunds_requested'] > 0): ?><span class="sa-kpi-badge sa-badge-warn">ação necessária</span><?php endif; ?>
+                </header>
+                <span class="sa-kpi-label">Reembolsos pedidos</span>
+                <strong class="sa-kpi-value"><?= $stats['refunds_requested'] ?></strong>
+                <footer class="sa-kpi-foot">
+                    <span class="sa-kpi-sub"><i class="bi bi-cash"></i> <?= money($stats['refunds_requested_v']) ?></span>
+                </footer>
+            </a>
         </div>
 
         <!-- ================= CONTEÚDO PRINCIPAL ================= -->

@@ -48,228 +48,182 @@ $stats = [
 ];
 
 include __DIR__.'/includes/header.php';
+$heroFarmer = $farmers[0] ?? null;
 ?>
 
 <!-- ============ HERO ============ -->
-<section class="hero-section">
-    <div class="container">
-        <div class="row align-items-center g-5">
-            <div class="col-lg-6">
-                <span class="eyebrow">
-                    <i class="bi bi-geo-alt-fill"></i> Marketplace agrícola de Moçambique
-                </span>
-                <h1>Do campo<br>para o <em>mercado.</em></h1>
-                <p class="lead">
-                    Produtos agrícolas frescos, diretamente dos produtores.
-                    Uma cadeia alimentar mais justa, curta e transparente.
-                </p>
-                <div class="hero-actions">
-                    <a class="btn btn-primary btn-lg" href="<?= base_path('marketplace.php') ?>">
-                        <i class="bi bi-basket2-fill"></i> Comprar produtos
-                    </a>
-                    <a class="btn btn-ghost btn-lg" href="<?= base_path('cadastro.php?tipo=agricultor') ?>">
-                        <i class="bi bi-shop"></i> Quero vender
-                    </a>
-                </div>
-                <ul class="hero-trust">
-                    <li><i class="bi bi-patch-check-fill"></i> Produtores verificados</li>
-                    <li><i class="bi bi-bag-check-fill"></i> Compra simples</li>
-                    <li><i class="bi bi-truck"></i> Entrega local</li>
-                </ul>
+<section class="home-hero">
+    <div class="container home-hero-grid">
+        <div class="home-hero-copy">
+            <span class="home-kicker">Direto do campo moçambicano</span>
+            <h1>Compre direto de quem planta.</h1>
+            <p class="home-lead">
+                Produtos frescos de agricultores de todo o país. Preço justo para quem produz,
+                entrega acompanhada para quem compra.
+            </p>
+            <div class="home-actions">
+                <a class="btn btn-primary btn-lg" href="<?= base_path('marketplace.php') ?>">
+                    Explorar produtos <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+                <a class="btn btn-ink-outline btn-lg" href="<?= base_path('cadastro.php?tipo=agricultor') ?>">
+                    Quero vender
+                </a>
             </div>
-            <div class="col-lg-6">
-                <div class="hero-visual">
-                    <img src="<?= asset('img/hero-farm.jpg') ?>"
-                         onerror="this.src='<?= asset('img/product-placeholder.svg') ?>'"
-                         alt="Agricultora num campo verde">
-                    <div class="hero-caption">
-                        <span class="hero-caption-number"><?= number_format((int)$stats['farmers'], 0, ',', ' ') ?></span>
-                        <span class="hero-caption-label">
-                            <i class="bi bi-people-fill"></i> agricultores registados
-                        </span>
-                    </div>
+            <dl class="home-stats">
+                <div>
+                    <dt><?= number_format((int)$stats['farmers'], 0, ',', ' ') ?></dt>
+                    <dd>agricultores registados</dd>
                 </div>
-            </div>
+                <div>
+                    <dt><?= number_format((int)$stats['products'], 0, ',', ' ') ?></dt>
+                    <dd>produtos à venda</dd>
+                </div>
+                <div>
+                    <dt><?= number_format((int)$stats['orders'], 0, ',', ' ') ?></dt>
+                    <dd>pedidos realizados</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="home-hero-visual">
+            <img src="<?= asset('img/hero-farm.jpg') ?>"
+                 onerror="this.src='<?= asset('img/product-placeholder.svg') ?>'"
+                 alt="Campo agrícola em Moçambique">
+            <span class="home-hero-tag">Do campo para o mercado</span>
+            <?php if ($heroFarmer): ?>
+                <a class="home-hero-farmer" href="<?= base_path('agricultor.php?id=' . safe_int($heroFarmer['id'])) ?>">
+                    <img src="<?= e(get_farmer_image(null, safe_int($heroFarmer['id']))) ?>"
+                         alt="" loading="lazy">
+                    <span>
+                        <strong>
+                            <?= e($heroFarmer['name']) ?>
+                            <i class="bi bi-check-lg" role="img" aria-label="Verificado"></i>
+                        </strong>
+                        <small>
+                            <?= e($heroFarmer['specialty'] ?: 'Agricultor verificado') ?>
+                            · <?= e($heroFarmer['district'] ?: $heroFarmer['province'] ?: 'Moçambique') ?>
+                        </small>
+                    </span>
+                </a>
+            <?php endif; ?>
         </div>
     </div>
 </section>
 
-<!-- ============ SEARCH ============ -->
-<section class="search-overlap">
+<!-- ============ PRODUTOS + CATEGORIAS ============ -->
+<section id="categorias" class="home-section">
     <div class="container">
-        <form class="search-box" action="<?= base_path('marketplace.php') ?>">
-            <i class="bi bi-search search-icon"></i>
-            <input name="q"
-                   placeholder="O que procura hoje? Tomate, milho, batata…"
-                   aria-label="Pesquisar produtos">
-            <button class="btn btn-primary">
-                <i class="bi bi-arrow-right"></i> Pesquisar
-            </button>
+        <div class="home-head">
+            <div>
+                <h2 id="produtos">Produtos em destaque</h2>
+                <p>Escolha a categoria ou pesquise. A entrega é calculada pela sua zona.</p>
+            </div>
+            <a href="<?= base_path('marketplace.php') ?>" class="link-arrow">
+                Ver os <?= number_format((int)$stats['products'], 0, ',', ' ') ?> produtos <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+        </div>
+
+        <form class="home-search" action="<?= base_path('marketplace.php') ?>" role="search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="homeSearch">Pesquisar produtos</label>
+            <input id="homeSearch" name="q" type="search" placeholder="Tomate, milho, mel…">
+            <button class="btn btn-primary" type="submit">Pesquisar</button>
         </form>
-    </div>
-</section>
 
-<!-- ============ CATEGORIAS ============ -->
-<section id="categorias" class="section-pad">
-    <div class="container">
-        <div class="section-heading">
-            <div>
-                <span class="eyebrow"><i class="bi bi-grid-3x3-gap-fill"></i> Explore por categoria</span>
-                <h2>Escolha o que vai levar para casa</h2>
-            </div>
-            <a href="<?= base_path('marketplace.php') ?>" class="link-arrow">
-                Ver tudo <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
-        <div class="row g-3">
+        <nav class="category-pills" aria-label="Categorias">
+            <a class="category-pill active" href="<?= base_path('marketplace.php') ?>">Todos</a>
             <?php foreach ($categories as $c): ?>
-                <div class="col-6 col-md-4 col-lg-2">
-                    <a class="category-tile" href="<?= base_path('marketplace.php?categoria=' . safe_int($c['id'])) ?>">
-                        <span class="category-media">
-                            <img src="<?= e(get_category_image(safe_int($c['id']))) ?>"
-                                 loading="lazy"
-                                 alt="<?= e($c['name']) ?>">
-                        </span>
-                        <strong><?= category_icon_html($c['icon'] ?? null) ?> <?= e($c['name']) ?></strong>
-                        <small><i class="bi bi-box-seam"></i> <?= safe_int($c['product_count']) ?> produtos</small>
-                    </a>
-                </div>
+                <a class="category-pill" href="<?= base_path('marketplace.php?categoria=' . safe_int($c['id'])) ?>">
+                    <?= category_icon_html($c['icon'] ?? null) ?>
+                    <?= e($c['name']) ?>
+                    <span class="category-pill-count"><?= safe_int($c['product_count']) ?></span>
+                </a>
             <?php endforeach; ?>
-        </div>
-    </div>
-</section>
+        </nav>
 
-<!-- ============ PRODUTOS ============ -->
-<section class="section-pad bg-soft">
-    <div class="container">
-        <div class="section-heading">
-            <div>
-                <span class="eyebrow"><i class="bi bi-star-fill"></i> Seleção da semana</span>
-                <h2>Produtos em destaque</h2>
-                <p class="text-muted mb-0">O melhor da produção local, selecionado para si.</p>
-            </div>
-            <a href="<?= base_path('marketplace.php') ?>" class="link-arrow">
-                Explorar marketplace <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
-        <div class="row g-4">
-            <?php foreach ($products as $p): ?>
-                <div class="col-sm-6 col-lg-3">
+        <?php if ($products): ?>
+            <div class="product-grid">
+                <?php foreach ($products as $p): ?>
                     <?php include __DIR__ . '/includes/product-card.php'; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p class="empty-state">Ainda não há produtos publicados.</p>
+        <?php endif; ?>
     </div>
 </section>
 
 <!-- ============ COMO FUNCIONA ============ -->
-<section id="como-funciona" class="section-pad">
+<section id="como-funciona" class="home-band">
     <div class="container">
-        <div class="section-heading center">
-            <div>
-                <span class="eyebrow"><i class="bi bi-info-circle-fill"></i> Simples e transparente</span>
-                <h2>Como funciona</h2>
-                <p class="text-muted">Uma nova forma de aproximar quem produz de quem compra.</p>
-            </div>
-        </div>
-        <div class="row g-4">
-            <?php foreach ([
-                ['01', 'bi-person-plus-fill',  'O agricultor entra',   'Cria o seu perfil e apresenta a sua produção.'],
-                ['02', 'bi-camera-fill',       'Publica produtos',     'Adiciona produtos, preços, stock e localização.'],
-                ['03', 'bi-search',            'O comprador encontra', 'Pesquisa, compara e compra com confiança.'],
-                ['04', 'bi-truck',             'Compra entregue',      'O produtor prepara e acompanha cada pedido.'],
-            ] as $step): ?>
-                <div class="col-md-6 col-lg-3">
-                    <div class="process-card">
-                        <span class="process-number"><?= $step[0] ?></span>
-                        <span class="process-icon"><i class="bi <?= $step[1] ?>"></i></span>
-                        <h5><?= $step[2] ?></h5>
-                        <p><?= $step[3] ?></p>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-</section>
-
-<!-- ============ ESTATÍSTICAS ============ -->
-<section class="stats-section">
-    <div class="container">
-        <div class="row text-center g-4">
-            <?php foreach ([
-                ['farmers',  'bi-people-fill',        'Agricultores'],
-                ['products', 'bi-basket2-fill',       'Produtos publicados'],
-                ['buyers',   'bi-person-check-fill',  'Compradores'],
-                ['orders',   'bi-receipt',            'Pedidos realizados'],
-            ] as $s): ?>
-                <div class="col-6 col-lg-3">
-                    <div class="stat-item">
-                        <span class="stat-icon"><i class="bi <?= $s[1] ?>"></i></span>
-                        <strong><?= number_format((int)$stats[$s[0]], 0, ',', ' ') ?></strong>
-                        <span class="stat-label"><?= $s[2] ?></span>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+        <h2>Como funciona</h2>
+        <ol class="home-steps">
+            <li>
+                <span class="home-step-num" aria-hidden="true">01</span>
+                <strong>Escolha</strong>
+                <p>Compare preços, origem e stock disponível de cada agricultor.</p>
+            </li>
+            <li>
+                <span class="home-step-num" aria-hidden="true">02</span>
+                <strong>Confirme e pague</strong>
+                <p>Finalize o pedido no checkout e escolha o método de pagamento disponível.</p>
+            </li>
+            <li>
+                <span class="home-step-num" aria-hidden="true">03</span>
+                <strong>Acompanhe a entrega</strong>
+                <p>A taxa e o prazo dependem da sua zona. Cada passo chega como notificação.</p>
+            </li>
+        </ol>
     </div>
 </section>
 
 <!-- ============ AGRICULTORES ============ -->
-<section class="section-pad bg-soft">
+<?php if ($farmers): ?>
+<section class="home-section">
     <div class="container">
-        <div class="section-heading">
+        <div class="home-head">
             <div>
-                <span class="eyebrow"><i class="bi bi-person-badge-fill"></i> Conheça quem produz</span>
-                <h2>Agricultores em destaque</h2>
+                <h2>Agricultores verificados</h2>
+                <p>Conheça quem produz o que chega à sua mesa.</p>
             </div>
             <a href="<?= base_path('marketplace.php') ?>" class="link-arrow">
-                Descobrir produtores <i class="bi bi-arrow-right"></i>
+                Descobrir produtores <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </a>
         </div>
-        <div class="row g-4">
+        <div class="farmer-grid">
             <?php foreach ($farmers as $f): ?>
-                <div class="col-sm-6 col-lg-3">
-                    <a class="farmer-card" href="<?= base_path('agricultor.php?id=' . safe_int($f['id'])) ?>">
-                        <div class="farmer-photo-wrap">
-                            <img class="farmer-photo"
-                                 src="<?= e(get_farmer_image(null, safe_int($f['id']))) ?>"
-                                 loading="lazy"
-                                 alt="Fotografia de <?= e($f['name']) ?>">
-                            <span class="farmer-photo-badge">
-                                <i class="bi bi-patch-check-fill"></i>
-                            </span>
-                        </div>
-                        <div class="farmer-info">
-                            <h5><?= e($f['name']) ?></h5>
-                            <p class="farmer-location">
-                                <i class="bi bi-geo-alt-fill"></i>
-                                <?= e($f['district'] ?: $f['province'] ?: 'Moçambique') ?>
-                            </p>
-                            <small>
-                                <i class="bi bi-box-seam"></i>
-                                <?= safe_int($f['products_count']) ?> produtos disponíveis
-                            </small>
-                        </div>
-                    </a>
-                </div>
+                <a class="home-farmer" href="<?= base_path('agricultor.php?id=' . safe_int($f['id'])) ?>">
+                    <img src="<?= e(get_farmer_image(null, safe_int($f['id']))) ?>"
+                         loading="lazy"
+                         alt="Fotografia de <?= e($f['name']) ?>">
+                    <span>
+                        <strong>
+                            <?= e($f['name']) ?>
+                            <i class="bi bi-check-lg" role="img" aria-label="Verificado"></i>
+                        </strong>
+                        <small>
+                            <?= e($f['specialty'] ?: 'Agricultor') ?>
+                            · <?= e($f['district'] ?: $f['province'] ?: 'Moçambique') ?>
+                        </small>
+                        <small class="home-farmer-count"><?= safe_int($f['products_count']) ?> produtos disponíveis</small>
+                    </span>
+                </a>
             <?php endforeach; ?>
         </div>
     </div>
 </section>
+<?php endif; ?>
 
 <!-- ============ CTA ============ -->
-<section class="cta-section">
+<section class="home-cta-wrap">
     <div class="container">
-        <div class="cta-box">
+        <div class="home-cta">
             <div>
-                <span class="eyebrow text-light">
-                    <i class="bi bi-rocket-takeoff-fill"></i> Faça parte da mudança
-                </span>
-                <h2>Comece a comercializar<br>os seus produtos hoje.</h2>
-                <p>Mais visibilidade, mais clientes e uma relação direta com o mercado.</p>
+                <h2>Produz? Venda a sua colheita aqui.</h2>
+                <p>Crie a conta, envie o documento de identificação e publique os produtos assim que a verificação for aprovada.</p>
             </div>
-            <a class="btn btn-light btn-lg" href="<?= base_path('cadastro.php?tipo=agricultor') ?>">
-                <i class="bi bi-person-plus-fill"></i> Criar perfil de agricultor
+            <a class="btn btn-ink btn-lg" href="<?= base_path('cadastro.php?tipo=agricultor') ?>">
+                Criar conta de agricultor
             </a>
         </div>
     </div>

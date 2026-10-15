@@ -31,6 +31,7 @@ if (is_post()) {
             if (!hash_equals($new, $confirm)) throw new RuntimeException('A confirmação não coincide com a nova password.');
             if (hash_equals($current, $new)) throw new RuntimeException('A nova password deve ser diferente da atual.');
             $pdo->prepare('UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?')->execute([password_hash($new, PASSWORD_DEFAULT), current_user_id()]);
+            revoke_remember_tokens(current_user_id());
             $pdo->prepare('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL')->execute([current_user_id()]);
             session_regenerate_id(true);
             audit(current_user_id(), 'password_change', 'users', 'SuperAdmin alterou a password');
