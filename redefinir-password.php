@@ -1,0 +1,14 @@
+<?php
+require_once __DIR__.'/includes/functions.php';
+$page_title='Definir nova password';
+$token=(string)($_GET['token']??$_POST['token']??''); $validToken=null;
+if($token!=='' && preg_match('/^[a-f0-9]{64}$/',$token)) { $s=db()->prepare('SELECT id,user_id FROM password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>NOW() LIMIT 1'); $s->execute([hash('sha256',$token)]); $validToken=$s->fetch(); }
+if(is_post()) {
+    verify_csrf($_POST['csrf']??''); $new=(string)($_POST['password']??''); $confirm=(string)($_POST['password_confirmation']??'');
+    if(!$validToken) flash('danger','O link é inválido, expirou ou já foi utilizado.');
+    elseif(!strong_password($new)) flash('danger','A password deve ter pelo menos 10 caracteres, maiúscula, minúscula e número.');
+    elseif($new!==$confirm) flash('danger','As passwords não coincidem.');
+    else { $pdo=db(); $pdo->beginTransaction(); $pdo->prepare('UPDATE users SET password=?,updated_at=NOW() WHERE id=?')->execute([password_hash($new,PASSWORD_DEFAULT),(int)$validToken['user_id']]); $pdo->prepare('UPDATE password_resets SET used_at=NOW() WHERE id=?')->execute([(int)$validToken['id']]); $pdo->commit(); audit((int)$validToken['user_id'],'password_reset','auth','Password redefinida com token válido'); flash('success','Password alterada com sucesso. Pode iniciar sessão.'); redirect(base_path('login.php')); }
+}
+include __DIR__.'/includes/header.php';
+?><section class="auth-section"><div class="auth-card"><div class="text-center mb-4"><div class="auth-logo"><i class="bi bi-shield-lock"></i></div><h1>Nova password</h1><p class="text-muted">Crie uma password forte para proteger a conta.</p></div><?php if(!$validToken): ?><div class="alert alert-danger">Este link não é válido ou já expirou. Solicite uma nova recuperação.</div><a class="btn btn-primary w-100" href="<?=base_path('recuperar-password.php')?>">Solicitar novo link</a><?php else: ?><form method="post"><?=csrf_field()?><input type="hidden" name="token" value="<?=e($token)?>"><div class="mb-3"><label class="form-label" for="password">Nova password</label><input id="password" type="password" name="password" class="form-control" minlength="10" required autocomplete="new-password"></div><div class="mb-4"><label class="form-label" for="password_confirmation">Confirmar password</label><input id="password_confirmation" type="password" name="password_confirmation" class="form-control" minlength="10" required autocomplete="new-password"></div><button class="btn btn-primary btn-lg w-100">Guardar password <i class="bi bi-check2 ms-2"></i></button></form><?php endif; ?></div></section><?php include __DIR__.'/includes/footer.php'; ?>

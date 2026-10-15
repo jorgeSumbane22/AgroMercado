@@ -1,0 +1,10 @@
+.env
+backups/*
+!backups/.gitkeep
+uploads/*
+!uploads/.htaccess
+*.log
+logs/*
+!logs/.htaccess
+storage/*
+!storage/.htaccess
