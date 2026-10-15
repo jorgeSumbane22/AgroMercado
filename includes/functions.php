@@ -68,7 +68,7 @@ function get_category_image(int $categoryId): string {
 }
 
 function cart_count(): int { if (!current_user_id()) return 0; $s = db()->prepare('SELECT COALESCE(SUM(ci.quantity),0) FROM carts c JOIN cart_items ci ON ci.cart_id=c.id WHERE c.buyer_id=(SELECT id FROM buyers WHERE user_id=?)'); $s->execute([current_user_id()]); return (int)$s->fetchColumn(); }
-function notify(int $userId, string $title, string $body): void { $s=db()->prepare('INSERT INTO notifications (user_id,title,body) VALUES (?,?,?)'); $s->execute([$userId,$title,$body]); }
+function notify(int $userId, string $title, string $body): void { $s=db()->prepare('INSERT INTO notifications (user_id,title,body) VALUES (?,?,?)'); $s->execute([$userId,$title,$body]); if (function_exists('notify_by_email')) notify_by_email($userId, $title, $body); }
 function audit(?int $userId, string $action, string $module, string $description): void { $s=db()->prepare('INSERT INTO audit_logs (user_id,action,module,description,ip) VALUES (?,?,?,?,?)'); $s->execute([$userId ?: null,$action,$module,$description,$_SERVER['REMOTE_ADDR'] ?? 'local']); }
 function order_status_label(string $status): string { return ['pending'=>'Pendente','confirmed'=>'Confirmado','preparing'=>'Em preparação','ready'=>'Pronto para entrega','shipping'=>'Em transporte','delivered'=>'Entregue','cancelled'=>'Cancelado'][$status] ?? ucfirst($status); }
 function order_status_class(string $status): string { return ['pending'=>'warning','confirmed'=>'info','preparing'=>'primary','ready'=>'primary','shipping'=>'secondary','delivered'=>'success','cancelled'=>'danger'][$status] ?? 'secondary'; }
@@ -164,3 +164,8 @@ function strong_password(string $p): bool { return strlen($p) >= 10 && preg_matc
 /* ---------- Favoritos ---------- */
 function favorite_product_ids(): array { static $ids = null; if ($ids !== null) return $ids; $ids = []; if (!current_user_id()) return $ids; $s = db()->prepare('SELECT product_id FROM favorites WHERE user_id=? AND product_id IS NOT NULL'); $s->execute([current_user_id()]); return $ids = array_map('intval', $s->fetchAll(PDO::FETCH_COLUMN)); }
 function is_favorite(int $productId): bool { return in_array($productId, favorite_product_ids(), true); }
+
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/commerce.php';
+require_once __DIR__ . '/catalog.php';
