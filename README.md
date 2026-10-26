@@ -12,17 +12,9 @@ Copie a pasta `agro-marketplace` para `C:\xampp\htdocs\agro-marketplace`. Inicie
 
 A ligação padrão usa `127.0.0.1`, base `agro_marketplace`, utilizador `root` e password vazia, que correspondem à configuração típica de uma instalação local do XAMPP. Se a sua instalação usar credenciais diferentes, defina as variáveis `AGRO_DB_HOST`, `AGRO_DB_NAME`, `AGRO_DB_USER` e `AGRO_DB_PASS` no ambiente PHP ou ajuste `config/database.php`.
 
-## Credenciais demonstrativas
+## Contas de demonstração
 
-Todas as contas seguintes são criadas pelo `schema.sql`. As passwords são armazenadas como hashes bcrypt e nunca em texto simples. A aplicação atual faz login pelo email; JorgeSumbane é o nome apresentado no painel do SuperAdmin.
-
-| Perfil | Email | Password |
-|---|---|---|
-| SuperAdmin — JorgeSumbane | `jorge.sumbane@agromercado.local` | `Admin@123` |
-| Agricultor | `joao@agromercado.local` | `Farmer@123` |
-| Agricultor | `maria@agromercado.local` | `Farmer@123` |
-| Comprador | `carlos_matola@agromercado.local` | `Buyer@123` |
-| Comprador | `beatriz_nunes@agromercado.local` | `Buyer@123` |
+O `schema.sql` cria contas de demonstração (SuperAdmin, agricultores e compradores) com emails `@agromercado.local`, apenas para testes locais. As palavras-passe estão guardadas como hashes bcrypt na base de dados e não são publicadas aqui. Antes de alojar o sistema, apague estas contas ou defina palavras-passe novas e fortes.
 
 ## Funcionalidades implementadas
 
