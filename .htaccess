@@ -1,4 +1,10 @@
 Options -Indexes
+
+# Pastas internas nunca são servidas pela web (base de dados, backups, ferramentas, testes, registos)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(database|backups|tools|tests|logs|storage)(/|$) - [F,L]
+</IfModule>
 <FilesMatch "\.(sql|log|ini|bak|env|md|txt|sh|example)$">
   Require all denied
 </FilesMatch>

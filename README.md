@@ -12,6 +12,10 @@ Copie a pasta `agro-marketplace` para `C:\xampp\htdocs\agro-marketplace`. Inicie
 
 A ligação padrão usa `127.0.0.1`, base `agro_marketplace`, utilizador `root` e password vazia, que correspondem à configuração típica de uma instalação local do XAMPP. Se a sua instalação usar credenciais diferentes, defina as variáveis `AGRO_DB_HOST`, `AGRO_DB_NAME`, `AGRO_DB_USER` e `AGRO_DB_PASS` no ambiente PHP ou ajuste `config/database.php`.
 
+## Publicar num alojamento (InfinityFree)
+
+Passos completos em [HOSPEDAGEM.md](HOSPEDAGEM.md): base de dados própria para alojamento (`database/hosting.sql`), ficheiro `.env`, configuração segura do SuperAdmin em `setup.php` e verificação final.
+
 ## Contas de demonstração
 
 O `schema.sql` cria contas de demonstração (SuperAdmin, agricultores e compradores) com emails `@agromercado.local`, apenas para testes locais. As palavras-passe estão guardadas como hashes bcrypt na base de dados e não são publicadas aqui. Antes de alojar o sistema, apague estas contas ou defina palavras-passe novas e fortes.

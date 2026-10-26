@@ -29,7 +29,10 @@ function load_env_file(string $file): void {
 load_env_file(dirname(__DIR__) . '/.env');
 
 function is_https(): bool {
-    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
+    if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443) return true;
+    // Alojamentos partilhados (ex.: InfinityFree) terminam o HTTPS num proxy e avisam por estes cabeçalhos
+    return strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')) === 'on';
 }
 
 // Erros nunca são mostrados ao visitante; ficam no log do PHP. Defina APP_DEBUG=1 para os ver em desenvolvimento.
